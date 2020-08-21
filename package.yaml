@@ -1,0 +1,19 @@
+name: diagnose
+version: 1.0.0
+github: "mesabloo/nihil"
+license: BSD3
+author: "Mesabloo"
+copyright: "2020 Mesabloo"
+
+dependencies:
+- base >= 4.7 && < 5
+- ansi-wl-pprint
+- containers
+
+default-extensions:
+- OverloadedStrings
+- LambdaCase
+- BlockArguments
+
+library:
+  source-dirs: src

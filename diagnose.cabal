@@ -1,0 +1,41 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.34.2.
+--
+-- see: https://github.com/sol/hpack
+
+name:           diagnose
+version:        1.0.0
+homepage:       https://github.com/mesabloo/nihil#readme
+bug-reports:    https://github.com/mesabloo/nihil/issues
+author:         Mesabloo
+maintainer:     Mesabloo
+copyright:      2020 Mesabloo
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/mesabloo/nihil
+
+library
+  exposed-modules:
+      Lib
+      Text.Diagnose
+      Text.Diagnose.Diagnostic
+      Text.Diagnose.Format
+      Text.Diagnose.Format.JSON
+      Text.Diagnose.Format.Text
+      Text.Diagnose.Position
+      Text.Diagnose.Report
+  other-modules:
+      Paths_diagnose
+  hs-source-dirs:
+      src
+  default-extensions: OverloadedStrings LambdaCase BlockArguments
+  build-depends:
+      ansi-wl-pprint
+    , base >=4.7 && <5
+    , containers
+  default-language: Haskell2010
