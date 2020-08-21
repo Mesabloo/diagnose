@@ -21,7 +21,6 @@ source-repository head
 
 library
   exposed-modules:
-      Lib
       Text.Diagnose
       Text.Diagnose.Diagnostic
       Text.Diagnose.Format
