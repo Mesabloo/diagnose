@@ -129,7 +129,7 @@ prettyCodeWithMarkers files markers color =
 -- | Prettifies a list of 'Hint's into a single 'Doc'ument. All 'Hint's are prettified and concatenated with a 'line' in between.
 prettyHints :: (PrettyText m) => [Hint m] -> Doc
 prettyHints [] = line
-prettyHints hs = blue (fillSep $ punctuate line (fmap render hs)) <> line
+prettyHints hs = blue (vsep (fmap render hs)) <> line
   where render (Hint msg) = smartPretty msg
 
 -- | Prettifies a marker.
