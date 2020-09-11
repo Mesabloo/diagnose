@@ -42,6 +42,18 @@ data Kind
 data Hint m
   = Hint m
 
+instance Semigroup m => Semigroup (Report m) where
+  Report k1 msg1 markers1 hints1 <> Report k2 msg2 markers2 hints2 =
+    Report detectedKind (msg1 <> msg2) (markers1 <> markers2) (hints1 <> hints2)
+   where
+     detectedKind = case (k1, k2) of
+       (Error, _) -> Error
+       (_, Error) -> Error
+       _          -> Warning
+
+instance Monoid m => Monoid (Report m) where
+  mempty = reportError mempty mempty mempty
+
 -- | A polymorphic marker, parameterized on the message type.
 --
 --   A marker is either:
