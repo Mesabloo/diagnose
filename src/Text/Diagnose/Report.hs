@@ -88,7 +88,7 @@ hint = Hint
 prettyReport :: (Foldable s, PrettyText (s a), PrettyText m) => Files s a -> Report m -> Doc
 prettyReport files (Report kind msg markers hints) =
   let (color, margin, sev) = prettyKind kind
-  in color (bold sev) <> colon <+> prettyText msg <$>
+  in color (bold sev) <> colon <+> align (smartPretty msg) <$>
      mconcat (replicate (margin - 2) space) <> text "In" <> colon <+>
      prettyCodeWithMarkers files markers color <$> line <>
      prettyHints hints
