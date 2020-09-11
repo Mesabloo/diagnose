@@ -44,7 +44,7 @@ data Hint m
 
 instance Semigroup m => Semigroup (Report m) where
   Report k1 msg1 markers1 hints1 <> Report k2 msg2 markers2 hints2 =
-    Report detectedKind (msg1 <> msg2) (markers1 <> markers2) (hints1 <> hints2)
+    Report detectedKind (msg1 <> msg2) (Map.unionWith (<>) markers1 markers2) (hints1 <> hints2)
    where
      detectedKind = case (k1, k2) of
        (Error, _) -> Error
