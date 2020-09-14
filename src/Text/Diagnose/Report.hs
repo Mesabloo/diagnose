@@ -161,7 +161,7 @@ prettyMarker underlineLen marker colorThis colorWhere colorMaybe = case marker o
 
 -- | A smarter pretty to keep long texts in between the bounds and correctly align them.
 smartPretty :: (PrettyText d) => d -> Doc
-smartPretty = fillSep . fmap text . words . show . prettyText
+smartPretty = vsep . fmap (fillSep . fmap text . words) . lines . show . prettyText
 
 
 -- | Applies a function to the list if it isn't '[]', else returns it.
