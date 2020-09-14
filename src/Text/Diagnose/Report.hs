@@ -21,7 +21,7 @@ import qualified Data.List.NonEmpty as List
 import Prelude hiding ((<$>))
 import Data.Functor ((<&>))
 import Data.Function (on)
-import Data.List (sortBy)
+import Data.List (sortBy, nub)
 import Data.Maybe (fromJust, maybeToList)
 
 type Files s a = Map FilePath [s a]
@@ -41,17 +41,18 @@ data Kind
 -- | A simple polymorphic hint holder
 data Hint m
   = Hint m
+ deriving (Eq)
 
-instance Semigroup m => Semigroup (Report m) where
+instance (Eq m, Semigroup m) => Semigroup (Report m) where
   Report k1 msg1 markers1 hints1 <> Report k2 msg2 markers2 hints2 =
-    Report detectedKind (msg1 <> msg2) (Map.unionWith (<>) markers1 markers2) (hints1 <> hints2)
+    Report detectedKind (msg1 <> msg2) (fmap List.nub $ Map.unionWith (<>) markers1 markers2) (nub $ hints1 <> hints2)
    where
      detectedKind = case (k1, k2) of
        (Error, _) -> Error
        (_, Error) -> Error
        _          -> Warning
 
-instance Monoid m => Monoid (Report m) where
+instance (Eq m, Monoid m) => Monoid (Report m) where
   mempty = reportError mempty mempty mempty
 
 -- | A polymorphic marker, parameterized on the message type.
@@ -62,6 +63,7 @@ data Marker m
   | Where m  -- ^ * a "where" marker (@----- \<message\>@) used to provide some useful information in the context
   | Maybe m  -- ^ * a "maybe" marker (@~~~~~ \<message\>@) used to provide ideas of potential fixes
   | Empty    -- ^ * an "empty" marker used to show a line in the error/warning without adding any sort of marker on it
+ deriving (Eq)
 
 -- | Creates a new report.
 reportError, reportWarning :: m -> [(Position, Marker m)] -> [Hint m] -> Report m
