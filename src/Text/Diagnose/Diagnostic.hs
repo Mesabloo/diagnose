@@ -37,5 +37,5 @@ instance (Foldable s, PrettyText (s a), PrettyText m) => PrettyText (Diagnostic 
 
 
 -- | Prints a @'Diagnostic' s m a@ To the given @'Handle'@
-printDiagnostic :: (Foldable s, PrettyText (s a), PrettyText m) => Handle -> Diagnostic s m a -> IO ()
-printDiagnostic handle diag = displayIO handle (renderPretty 0.9 80 $ prettyText diag)
+printDiagnostic :: (Foldable s, PrettyText (s a), PrettyText m) => Bool -> Handle -> Diagnostic s m a -> IO ()
+printDiagnostic withColor handle diag = displayIO handle (renderPretty 0.9 80 . (if withColor then id else plain) $ prettyText diag)
