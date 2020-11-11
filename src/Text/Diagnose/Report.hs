@@ -22,7 +22,7 @@ import Prelude hiding ((<$>))
 import Data.Functor ((<&>))
 import Data.Function (on)
 import Data.List (sortBy, nub)
-import Data.Maybe (fromJust, maybeToList)
+import Data.Maybe (fromJust, maybeToList, fromMaybe)
 
 type Files s a = Map FilePath [s a]
 type Markers m = Map Position (NonEmpty (Marker m))
@@ -119,26 +119,38 @@ prettyCodeWithMarkers files markers color =
           showLine l     =
             space <> text (replicate (maxLineMarkLen - length (show l)) ' ') <> integer l <> text "|"
 
-          fileContent    = fromJust (Map.lookup file files)
+          fileContent    = fromMaybe [] (Map.lookup file files)
 
           showMarkers    = sortedMarkers <&> uncurry \ Position{..} markers ->
             let (bLine, bCol)  = beginning
                 (eLine, eCol)  = end
 
-                code           = fileContent !! fromIntegral (bLine - 1)
+                code           = fileContent !!? fromIntegral (bLine - 1)
 
-                underlineLen   = fromIntegral $ (if eLine == bLine then eCol else fromIntegral (length code)) - bCol
+                underlineLen   = fromIntegral $ (if eLine == bLine then eCol else fromIntegral (maybe 0 length code)) - bCol
 
                 marker m       = prettyMarker underlineLen m color magenta dullgreen
                 renderMarker m =
                   marker m <&> \ x -> mconcat (replicate (maxLineMarkLen + 2 + fromIntegral bCol) space) <> x
 
                 renderedMarkers = List.toList markers >>= maybeToList . renderMarker
-            in white $ bold (showLine bLine) <+> prettyText code <>
+            in white $ bold (showLine bLine) <+> maybe (text "<no line>") prettyText code <>
                mconcat (applyIfNotNull (line :) $ punctuate line renderedMarkers)
       in green (text file) <$>
          empty <$>
          mconcat (punctuate line showMarkers)
+
+infix 9 !!?
+(!!?) :: [a] -> Int -> Maybe a
+(!!?) xs i
+    | i < 0     = Nothing
+    | otherwise = go i xs
+  where
+    go :: Int -> [a] -> Maybe a
+    go 0 (x:_)  = Just x
+    go j (_:ys) = go (j - 1) ys
+    go _ []     = Nothing
+{-# INLINE (!!?) #-}
 
 -- | Prettifies a list of 'Hint's into a single 'Doc'ument. All 'Hint's are prettified and concatenated with a 'line' in between.
 prettyHints :: (PrettyText m) => [Hint m] -> Doc
