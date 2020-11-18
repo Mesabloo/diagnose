@@ -135,7 +135,8 @@ prettyCodeWithMarkers files markers color =
 
                 renderedMarkers = List.toList markers >>= maybeToList . renderMarker
             in white $ bold (showLine bLine) <+> maybe (text "<no line>") prettyText code <>
-               mconcat (applyIfNotNull (line :) $ punctuate line renderedMarkers)
+               mconcat (applyIfNotNull (line :) $ punctuate line renderedMarkers) <>
+               if bCol + fromIntegral underlineLen > 40 then line else empty
       in green (text file) <$>
          empty <$>
          mconcat (punctuate line showMarkers)
