@@ -31,6 +31,11 @@ Diagnostic files reports <++> report = Diagnostic files (reports ++ [report])
 infixl 5 <++>
 infixl 4 <~<
 
+-- | Checks whether a 'Diagnostic' is empty or not, i.e. it has no reports.
+empty :: Diagnostic s m a -> Bool
+empty (Diagnostic _ []) = True
+empty _                 = False
+
 
 instance (Foldable s, PrettyText (s a), PrettyText m) => PrettyText (Diagnostic s m a) where
   prettyText (Diagnostic _ []) = empty
@@ -39,4 +44,6 @@ instance (Foldable s, PrettyText (s a), PrettyText m) => PrettyText (Diagnostic 
 
 -- | Prints a @'Diagnostic' s m a@ To the given @'Handle'@
 printDiagnostic :: (Foldable s, PrettyText (s a), PrettyText m) => Bool -> Handle -> Diagnostic s m a -> IO ()
-printDiagnostic withColor handle diag = displayIO handle (renderPretty 0.9 80 . (if withColor then id else plain) $ prettyText diag)
+printDiagnostic withColor handle diag
+  | empty diag = pure ()
+  | otherwise  = displayIO handle (renderPretty 0.9 80 . (if withColor then id else plain) $ prettyText diag)
