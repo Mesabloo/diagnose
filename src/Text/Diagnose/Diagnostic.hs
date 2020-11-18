@@ -33,6 +33,7 @@ infixl 4 <~<
 
 
 instance (Foldable s, PrettyText (s a), PrettyText m) => PrettyText (Diagnostic s m a) where
+  prettyText (Diagnostic _ []) = empty
   prettyText (Diagnostic files reports) = indent 1 (sep (fmap (prettyReport files) reports)) <> line
 
 
