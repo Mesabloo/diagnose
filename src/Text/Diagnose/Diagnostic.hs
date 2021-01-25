@@ -10,6 +10,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Text.PrettyPrint.ANSI.Leijen
 import System.IO (Handle)
+import Text.Diagnose.Internal.ReportSize (maxWidth)
 
 -- | A @'Diagnostic' s m a@ is a diagnostic whose stream is a @s a@ and whose message type is @m@.
 data Diagnostic s m a
@@ -46,4 +47,4 @@ instance (Foldable s, PrettyText (s a), PrettyText m) => PrettyText (Diagnostic 
 printDiagnostic :: (Foldable s, PrettyText (s a), PrettyText m) => Bool -> Handle -> Diagnostic s m a -> IO ()
 printDiagnostic withColor handle diag
   | emptyDiag diag = pure ()
-  | otherwise      = displayIO handle (renderPretty 0.9 80 . (if withColor then id else plain) $ prettyText diag)
+  | otherwise      = displayIO handle (renderPretty 0.9 maxWidth . (if withColor then id else plain) $ prettyText diag)

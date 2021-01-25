@@ -26,6 +26,7 @@ library
       Text.Diagnose.Format
       Text.Diagnose.Format.JSON
       Text.Diagnose.Format.Text
+      Text.Diagnose.Internal.ReportSize
       Text.Diagnose.Position
       Text.Diagnose.Report
   other-modules:
