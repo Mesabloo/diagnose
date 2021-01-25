@@ -23,6 +23,7 @@ import Data.Functor ((<&>))
 import Data.Function (on)
 import Data.List (sortBy, nub)
 import Data.Maybe (fromJust, maybeToList, fromMaybe)
+import Text.Diagnose.Internal.ReportSize (maxWidth)
 
 type Files s a = Map FilePath [s a]
 type Markers m = Map Position (NonEmpty (Marker m))
@@ -129,9 +130,10 @@ prettyCodeWithMarkers files markers color =
 
                 underlineLen   = fromIntegral $ (if eLine == bLine then eCol else fromIntegral (maybe 0 length code)) - bCol
 
-                marker m       = prettyMarker underlineLen m color magenta dullgreen
+                markerOffset   = maxLineMarkLen + 2 + fromIntegral bCol
+                marker m       = prettyMarker underlineLen markerOffset m color magenta dullgreen
                 renderMarker m =
-                  marker m <&> \ x -> mconcat (replicate (maxLineMarkLen + 2 + fromIntegral bCol) space) <> x
+                  marker m <&> \ x -> mconcat (replicate markerOffset space) <> x
 
                 renderedMarkers = List.toList markers >>= maybeToList . renderMarker
             in white $ bold (showLine bLine) <+> maybe (text "<no line>") prettyText code <>
@@ -162,17 +164,22 @@ prettyHints hs = blue (vsep (fmap render hs)) <> line
 -- | Prettifies a marker.
 prettyMarker :: (PrettyText m)
              => Int          -- ^ The length of the marker
+             -> Int          -- ^ The offset of the marker
              -> Marker m     -- ^ The marker to show
              -> (Doc -> Doc) -- ^ The color if a "this" marker
              -> (Doc -> Doc) -- ^ The color for a "where" marker
              -> (Doc -> Doc) -- ^ The color for a "maybe" marker
              -> Maybe Doc    -- ^ 'Nothing' if it is the 'Empty' marker
-prettyMarker underlineLen marker colorThis colorWhere colorMaybe = case marker of
+prettyMarker underlineLen offset marker colorThis colorWhere colorMaybe = case marker of
   Empty     -> Nothing
-  This msg  -> Just (colorThis $ under '^' <+> align (smartPretty msg))
-  Where msg -> Just (colorWhere $ under '-' <+> align (smartPretty msg))
-  Maybe msg -> Just (colorMaybe $ under '~' <+> align (smartPretty msg))
+  This msg  -> showMarker '^' msg colorThis
+  Where msg -> showMarker '-' msg colorWhere
+  Maybe msg -> showMarker '~' msg colorMaybe
  where under   = text . replicate underlineLen
+       showMarker c msg color =
+         Just $ if offset + underlineLen > fromIntegral (maxWidth `div` 2)
+               then color $ under c <> line <> indent (offset + 4) (align $ smartPretty msg)
+               else color $ under c <+> align (smartPretty msg)
 
 -- | A smarter pretty to keep long texts in between the bounds and correctly align them.
 smartPretty :: (PrettyText d) => d -> Doc
