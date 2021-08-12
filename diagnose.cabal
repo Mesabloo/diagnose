@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.2.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 
@@ -33,7 +33,10 @@ library
       Paths_diagnose
   hs-source-dirs:
       src
-  default-extensions: OverloadedStrings LambdaCase BlockArguments
+  default-extensions:
+      OverloadedStrings
+      LambdaCase
+      BlockArguments
   build-depends:
       ansi-wl-pprint
     , base >=4.7 && <5
