@@ -1,17 +1,16 @@
 name: diagnose
 version: 1.0.0
-github: "mesabloo/nihil"
+github: "mesabloo/diagnose"
 license: BSD3
 author: "Mesabloo"
 copyright: "2020 Mesabloo"
 
 dependencies:
 - base >= 4.7 && < 5
-- ansi-wl-pprint
-- containers
-- unordered-containers
-- hashable
-- data-default
+- ansi-wl-pprint == 0.6.9
+- unordered-containers == 0.2.14.0
+- hashable == 1.3.0.0
+- data-default == 0.7.1.1
 
 default-extensions:
 - OverloadedStrings

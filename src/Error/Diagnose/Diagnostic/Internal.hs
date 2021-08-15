@@ -20,7 +20,7 @@ import Data.Foldable (fold)
 import Data.HashMap.Lazy (HashMap)
 import Data.List (intersperse)
 
-import Error.Diagnose.Report
+import Error.Diagnose.Report (Report)
 import Error.Diagnose.Report.Internal (prettyReport)
 
 import System.IO (Handle)
