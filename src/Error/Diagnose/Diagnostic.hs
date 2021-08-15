@@ -10,6 +10,6 @@ module Error.Diagnose.Diagnostic
   ( -- * Re-exports
     module Export ) where
 
-import Error.Diagnose.Diagnostic.Internal as Export (Diagnostic, def, printDiagnostic, addFile, addReport)
+import Error.Diagnose.Diagnostic.Internal as Export (Diagnostic, def, printDiagnostic, diagnosticToJson, addFile, addReport)
 
 import System.IO as Export (stdout, stderr)

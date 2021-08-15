@@ -1,5 +1,6 @@
 import Error.Diagnose
     ( printDiagnostic,
+      diagnosticToJson,
       stdout,
       err,
       warn,
@@ -13,8 +14,9 @@ import Error.Diagnose
 
 import qualified Data.HashMap.Lazy as HashMap
 
-import System.IO (hPutStrLn)
+import System.IO (hPutStrLn, hFlush)
 import Data.List (foldl')
+import qualified Data.ByteString.Lazy as BS
 
 main :: IO ()
 main = do
@@ -56,6 +58,9 @@ main = do
   printDiagnostic stdout True True diag
   hPutStrLn stdout "\n\nWithout unicode: ----------------------\n"
   printDiagnostic stdout False True diag
+  hPutStrLn stdout "\n\nAs JSON: ------------------------------\n"
+  BS.hPutStr stdout (diagnosticToJson diag)
+  hPutStrLn stdout "\n"
 
 errorNoMarkersNoHints :: Report String
 errorNoMarkersNoHints =

@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+
 {-|
 Module      : Error.Diagnose.Diagnostic.Internal
 Description : Internal workings for diagnostic definitions and pretty printing.
@@ -15,9 +17,12 @@ module Error.Diagnose.Diagnostic.Internal (module Error.Diagnose.Diagnostic.Inte
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
 
+import Data.Aeson (ToJSON(..), encode, object, (.=))
+import Data.ByteString.Lazy (ByteString)
 import Data.Default (Default, def)
 import Data.Foldable (fold)
 import Data.HashMap.Lazy (HashMap)
+import qualified Data.HashMap.Lazy as HashMap
 import Data.List (intersperse)
 
 import Error.Diagnose.Report (Report)
@@ -26,7 +31,6 @@ import Error.Diagnose.Report.Internal (prettyReport)
 import System.IO (Handle)
 
 import Text.PrettyPrint.ANSI.Leijen (Pretty, Doc, empty, hardline, hPutDoc, plain)
-import qualified Data.HashMap.Lazy as HashMap
 
 
 -- | The data type for diagnostic containing messages of an abstract type.
@@ -46,6 +50,17 @@ instance Default (Diagnostic msg) where
 instance Semigroup (Diagnostic msg) where
   Diagnostic rs1 file <> Diagnostic rs2 _ = Diagnostic (rs1 <> rs2) file
 
+instance ToJSON msg => ToJSON (Diagnostic msg) where
+  toJSON (Diagnostic reports files) =
+    object [ "files" .= HashMap.toList files
+           , "reports" .= reports
+           ]
+
+instance {-# OVERLAPPING #-} ToJSON (FilePath, [String]) where
+  toJSON (path, content) =
+    object [ "name" .= path
+           , "content" .= content
+           ]
 
 -- | Pretty prints a diagnostic into a 'Doc'ument that can be output using
 --   'Text.PrettyPrint.ANSI.Leijen.hPutDoc' or 'Text.PrettyPrint.ANSI.Leijen.displayIO'.
@@ -85,3 +100,27 @@ addReport :: Diagnostic msg
           -> Diagnostic msg
 addReport (Diagnostic reports files) report =
   Diagnostic (report : reports) files
+
+-- | Creates a JSON object from a diagnostic, containing those fields (only types are indicated):
+--
+--   > { files:
+--   >     { name: string
+--   >     , content: string[]
+--   >     }[]
+--   > , reports:
+--   >     { kind: 'error' | 'warning'
+--   >     , message: string
+--   >     , markers:
+--   >         { kind: 'this' | 'where' | 'maybe'
+--   >         , position:
+--   >             { beginning: { line: int, column: int }
+--   >             , end: { line: int, column: int }
+--   >             , file: string
+--   >             }
+--   >         , message: string
+--   >         }[]
+--   >     , hints: string[]
+--   >     }[]
+--   > }
+diagnosticToJson :: ToJSON msg => Diagnostic msg -> ByteString
+diagnosticToJson = encode

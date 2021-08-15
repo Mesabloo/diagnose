@@ -1,4 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 {-|
 Module      : Error.Diagnose.Diagnostic
@@ -8,8 +10,9 @@ License     : BSD3
 Stability   : experimental
 Portability : Portable
 -}
-module Error.Diagnose.Position where
+module Error.Diagnose.Position (Position(..)) where
 
+import Data.Aeson (ToJSON(..), encode, object, (.=))
 import Data.Default (Default, def)
 import Data.Hashable (Hashable)
 
@@ -51,3 +54,15 @@ instance Hashable Position where
 
 instance Default Position where
   def = Position (1, 1) (1, 1) "<no-file>"
+
+instance ToJSON Position where
+  toJSON Position{..} =
+    object [ "beginning" .= begin
+           , "end" .= end
+           , "file" .= file
+           ]
+
+instance {-# OVERLAPPING #-} ToJSON (Int, Int) where
+  toJSON (x, y) =
+    object [ "line" .= x
+           , "column" .= y ]

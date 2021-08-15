@@ -2,6 +2,7 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 {-|
 Module      : Error.Diagnose.Report.Internal
@@ -18,6 +19,7 @@ Portability : Portable
 -}
 module Error.Diagnose.Report.Internal where
 
+import Data.Aeson (ToJSON(..), encode, object, (.=))
 import Data.Bifunctor (first, second, bimap)
 import Data.Default (def)
 import Data.Foldable (fold)
@@ -41,6 +43,28 @@ data Report msg
         msg                             -- ^ The message associated with the error.
         [(Position, Marker msg)]        -- ^ A map associating positions with marker to show under the source code.
         [msg]                           -- ^ A list of hints to add at the end of the report.
+
+instance ToJSON msg => ToJSON (Report msg) where
+  toJSON (Report isError msg markers hints) =
+    object [ "kind" .= (if isError then "error" else "warning" :: String)
+           , "message" .= msg
+           , "markers" .= markers
+           , "hints" .= hints
+           ]
+
+instance {-# OVERLAPPING #-} ToJSON msg => ToJSON (Position, Marker msg) where
+  toJSON (pos, marker) =
+    object $ [ "position" .= pos ]
+          <> case marker of
+               This m  -> [ "message" .= m
+                          , "kind" .= ("this" :: String)
+                          ]
+               Where m -> [ "message" .= m
+                          , "kind" .= ("where" :: String)
+                          ]
+               Maybe m -> [ "message" .= m
+                          , "kind" .= ("maybe" :: String)
+                          ]
 
 -- | The type of markers with abstract message type, shown under code lines.
 data Marker msg
