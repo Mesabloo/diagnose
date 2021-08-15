@@ -1,0 +1,6 @@
+cradle:
+  stack:
+    - path: "./test"
+      component: "diagnose:test:diagnose-tests"
+    - path: "./src"
+      component: "diagnose:lib"
