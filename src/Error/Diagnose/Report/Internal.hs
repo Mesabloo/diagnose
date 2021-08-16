@@ -48,23 +48,22 @@ instance ToJSON msg => ToJSON (Report msg) where
   toJSON (Report isError msg markers hints) =
     object [ "kind" .= (if isError then "error" else "warning" :: String)
            , "message" .= msg
-           , "markers" .= markers
+           , "markers" .= fmap showMarker markers
            , "hints" .= hints
            ]
-
-instance {-# OVERLAPPING #-} ToJSON msg => ToJSON (Position, Marker msg) where
-  toJSON (pos, marker) =
-    object $ [ "position" .= pos ]
-          <> case marker of
-               This m  -> [ "message" .= m
-                          , "kind" .= ("this" :: String)
-                          ]
-               Where m -> [ "message" .= m
-                          , "kind" .= ("where" :: String)
-                          ]
-               Maybe m -> [ "message" .= m
-                          , "kind" .= ("maybe" :: String)
-                          ]
+    where
+      showMarker (pos, marker) =
+        object $ [ "position" .= pos ]
+              <> case marker of
+                   This m  -> [ "message" .= m
+                              , "kind" .= ("this" :: String)
+                              ]
+                   Where m -> [ "message" .= m
+                              , "kind" .= ("where" :: String)
+                              ]
+                   Maybe m -> [ "message" .= m
+                              , "kind" .= ("maybe" :: String)
+                              ]
 
 -- | The type of markers with abstract message type, shown under code lines.
 data Marker msg

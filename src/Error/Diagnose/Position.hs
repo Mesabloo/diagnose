@@ -56,13 +56,8 @@ instance Default Position where
   def = Position (1, 1) (1, 1) "<no-file>"
 
 instance ToJSON Position where
-  toJSON Position{..} =
-    object [ "beginning" .= begin
-           , "end" .= end
+  toJSON (Position (bl, bc) (el, ec) file) =
+    object [ "beginning" .= object [ "line" .= bl, "column" .= bc ]
+           , "end" .= object [ "line" .= el, "column" .= ec ]
            , "file" .= file
            ]
-
-instance {-# OVERLAPPING #-} ToJSON (Int, Int) where
-  toJSON (x, y) =
-    object [ "line" .= x
-           , "column" .= y ]
