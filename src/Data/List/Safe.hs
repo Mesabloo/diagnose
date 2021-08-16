@@ -16,7 +16,7 @@ safeHead (x : _) = Just x
 -- | Analogous tu 'Data.List.!!', but does not throw an error on missing index.
 safeIndex :: Int -> [a] -> Maybe a
 safeIndex _ []       = Nothing
-safeIndex 0 (x : xs) = Just x
+safeIndex 0 (x : _)  = Just x
 safeIndex n (_ : xs)
   | n < 0            = Nothing
   | otherwise        = safeIndex (n - 1) xs

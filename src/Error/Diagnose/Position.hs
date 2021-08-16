@@ -12,7 +12,7 @@ Portability : Portable
 -}
 module Error.Diagnose.Position (Position(..)) where
 
-import Data.Aeson (ToJSON(..), encode, object, (.=))
+import Data.Aeson (ToJSON(..), object, (.=))
 import Data.Default (Default, def)
 import Data.Hashable (Hashable)
 

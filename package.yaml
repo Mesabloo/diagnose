@@ -22,6 +22,12 @@ default-extensions:
 library:
   source-dirs: src
 
+ghc-options:
+- -Wall
+- -Wextra
+- -Wmissing-local-signatures
+- -Wmonomorphism-restriction
+
 tests:
   diagnose-tests:
     main:                Spec.hs

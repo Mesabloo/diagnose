@@ -3,6 +3,9 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
+{-# OPTIONS -Wno-name-shadowing #-}
 
 {-|
 Module      : Error.Diagnose.Report.Internal
@@ -19,7 +22,7 @@ Portability : Portable
 -}
 module Error.Diagnose.Report.Internal where
 
-import Data.Aeson (ToJSON(..), encode, object, (.=))
+import Data.Aeson (ToJSON(..), object, (.=))
 import Data.Bifunctor (first, second, bimap)
 import Data.Default (def)
 import Data.Foldable (fold)
@@ -32,7 +35,7 @@ import qualified Data.List.Safe as List
 
 import Error.Diagnose.Position
 
-import Text.PrettyPrint.ANSI.Leijen (Pretty, Doc, empty, bold, red, yellow, colon, pretty, hardline, (<+>), text, black, green, fill, dullgreen, width, dullblue, magenta, int, space, align, cyan, char)
+import Text.PrettyPrint.ANSI.Leijen (Pretty, Doc, empty, bold, red, yellow, colon, pretty, hardline, (<+>), text, black, dullgreen, width, dullblue, magenta, int, space, align, cyan, char)
 import Text.PrettyPrint.ANSI.Leijen.Internal (Doc(..))
 
 
@@ -79,14 +82,17 @@ instance Eq (Marker msg) where
   Where _ == Where _ = True
   Maybe _ == Maybe _ = True
   _ == _             = False
+  {-# INLINABLE (==) #-}
 
 instance Ord (Marker msg) where
   This _ < _       = False
   Where _ < This _ = True
   Where _ < _      = False
   Maybe _ < _      = True
+  {-# INLINABLE (<) #-}
 
   m1 <= m2         = m1 < m2 || m1 == m2
+  {-# INLINABLE (<=) #-}
 
 
 -- | Constructs a warning or an error report.
@@ -196,8 +202,8 @@ linePrefix leftLen lineNo withUnicode =
 splitMarkersPerLine :: [(Position, Marker msg)] -> (HashMap Int [(Position, Marker msg)], [(Position, Marker msg)])
 splitMarkersPerLine []                         = (mempty, mempty)
 splitMarkersPerLine (m@(Position{..}, _) : ms) =
-  let (bl, bc) = begin
-      (el, ec) = end
+  let (bl, _) = begin
+      (el, _) = end
   in (if bl == el then first (HashMap.insertWith (<>) bl [m]) else second (m :))
         (splitMarkersPerLine ms)
 
@@ -215,9 +221,6 @@ prettyAllLines _ _ _ _ _ [] []                                                = 
 prettyAllLines _ withUnicode isError leftLen _ multiline []                   =
   let colorOfLastMultilineMarker = maybe id (markerColor isError . snd) (List.safeLast multiline)
       -- take the color of the last multiline marker in case we need to add additional bars
-
-      firstPos = maybe def fst (List.safeHead multiline)
-      -- get the position of the first multiline marker to know when we are done
 
       prefix = hardline <+> dotPrefix leftLen withUnicode <> space
       prefixWithBar color = prefix <> color (text if withUnicode then "│ " else "| ")
@@ -278,9 +281,11 @@ getLine_ files markers line isError = case List.safeIndex (line - 1) =<< (HashMa
     in  maybe id ((\ m -> bold . markerColor isError m) . snd) (List.safeLast colorizingMarkers) (char c)
 -- TODO: color the code where there are markers, still prioritizing right markers over left ones
   where
+    indexed :: [a] -> [(Int, a)]
     indexed = goIndexed 1
 
-    goIndexed n []       = []
+    goIndexed :: Int -> [a] -> [(Int, a)]
+    goIndexed _ []       = []
     goIndexed n (x : xs) = (n, x) : goIndexed (n + 1) xs
 
 -- |
@@ -316,7 +321,7 @@ showAllMarkersInLine hasMultilines colorMultilinePrefix withUnicode isError left
 
             allPreviousPipes = nubbedPipes <&> second \ marker -> markerColor isError marker (text if withUnicode then "│" else "|")
 
-            allColumns n []                                     = (1, [])
+            allColumns _ []                                     = (1, [])
             allColumns n ms@((Position (_, bc) _ _, col) : ms')
               | n == bc                                         = bimap (+ 1) (col :) (allColumns (n + 1) ms')
               | otherwise                                       = bimap (+ 1) (space :) (allColumns (n + 1) ms)
@@ -325,7 +330,7 @@ showAllMarkersInLine hasMultilines colorMultilinePrefix withUnicode isError left
             hasSuccessor = length filteredPipes /= length pipes
 
             lineStart =
-              let (n, docs) = allColumns 1 allPreviousPipes
+              let (n, docs) :: (Int, [Doc]) = allColumns 1 allPreviousPipes
               in  dotPrefix leftLen withUnicode <+> specialPrefix <> fold docs <> text (replicate (bc - n) ' ')
               -- the start of the line contains the "dot"-prefix as well as all the pipes for all the still not rendered marker messages
 
@@ -341,6 +346,8 @@ showAllMarkersInLine hasMultilines colorMultilinePrefix withUnicode isError left
 -- WARN: uses the internal of the library
 --
 --       DO NOT use a wildcard here, in case the internal API exposes one more constructor
+-- |
+replaceLinesWith :: Doc -> Doc -> Doc
 replaceLinesWith repl Line                   = repl
 replaceLinesWith _ Fail                      = Fail
 replaceLinesWith _ Empty                     = Empty

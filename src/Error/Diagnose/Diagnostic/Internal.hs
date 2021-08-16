@@ -30,7 +30,7 @@ import Error.Diagnose.Report.Internal (prettyReport)
 
 import System.IO (Handle)
 
-import Text.PrettyPrint.ANSI.Leijen (Pretty, Doc, empty, hardline, hPutDoc, plain)
+import Text.PrettyPrint.ANSI.Leijen (Pretty, Doc, hardline, hPutDoc, plain)
 
 
 -- | The data type for diagnostic containing messages of an abstract type.
@@ -52,15 +52,14 @@ instance Semigroup (Diagnostic msg) where
 
 instance ToJSON msg => ToJSON (Diagnostic msg) where
   toJSON (Diagnostic reports files) =
-    object [ "files" .= HashMap.toList files
+    object [ "files" .= fmap toJSONFile (HashMap.toList files)
            , "reports" .= reports
            ]
-
-instance {-# OVERLAPPING #-} ToJSON (FilePath, [String]) where
-  toJSON (path, content) =
-    object [ "name" .= path
-           , "content" .= content
-           ]
+    where
+      toJSONFile (path, content) =
+        object [ "name" .= path
+               , "content" .= content
+               ]
 
 -- | Pretty prints a diagnostic into a 'Doc'ument that can be output using
 --   'Text.PrettyPrint.ANSI.Leijen.hPutDoc' or 'Text.PrettyPrint.ANSI.Leijen.displayIO'.
