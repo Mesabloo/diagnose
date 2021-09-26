@@ -142,7 +142,7 @@ prettyReport fileContent withUnicode (Report isError message markers hints) =
         (6)    -------+
 -}
   in  {- (1) -} header <> colon <+> align (pretty message) <> hardline
-  <+> {- (2) -} pad maxLineNumberLength ' ' empty <+> bold (black $ text if withUnicode then "╭─🢒" else "+->") <+> bold (dullgreen reportFile) <> hardline
+  <+> {- (2) -} pad maxLineNumberLength ' ' empty <+> bold (black $ text if withUnicode then "╭─▶" else "+->") <+> bold (dullgreen reportFile) <> hardline
   <+> {- (3) -} pipePrefix maxLineNumberLength withUnicode
   <>  {- (4) -} prettyAllLines fileContent withUnicode isError maxLineNumberLength sortedMarkersPerLine multilineMarkers allLineNumbers
   <>  {- (5) -} (if null hints || null markers then empty else hardline <+> dotPrefix maxLineNumberLength withUnicode) <> prettyAllHints hints maxLineNumberLength withUnicode <> hardline
