@@ -49,8 +49,9 @@ main = do
         , errorSingleMultilineMarkerMultilineMessageNoHints
         , errorTwoMultilineMarkersFirstMultilineMessageNoHints
         , errorThreeMultilineMarkersTwoMultilineMessageNoHints
-        , beautifulExample
-        ]
+        , errorOrderSensitive
+        , beautifulExample 
+        ] 
 
   let diag = HashMap.foldlWithKey' addFile (foldr (flip addReport) def reports) files
 
@@ -214,6 +215,13 @@ errorThreeMultilineMarkersTwoMultilineMessageNoHints =
     [ (Position (1, 9) (2, 5) "test.zc", This "First")
     , (Position (1, 9) (2, 6) "test.zc", Where "Multi\nline message")
     , (Position (1, 9) (2, 7) "test.zc", Maybe "Multi\nline message #2") ]
+    []
+
+errorOrderSensitive :: Report String
+errorOrderSensitive =
+  err "Order-sensitive labels with crossing"
+    [ (Position (1, 1) (1, 7) "somefile.zc", This "Leftmost label")
+    , (Position (1, 9) (1, 16) "somefile.zc", Where "Rightmost label") ]
     []
 
 beautifulExample :: Report String

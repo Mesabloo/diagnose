@@ -32,10 +32,11 @@ import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
 import qualified Data.List as List
 import qualified Data.List.Safe as List
+import Data.Ord (Down(..))
 
 import Error.Diagnose.Position
 
-import Text.PrettyPrint.ANSI.Leijen (Pretty, Doc, empty, bold, red, yellow, colon, pretty, hardline, (<+>), text, black, dullgreen, width, dullblue, magenta, int, space, align, cyan, char)
+import Text.PrettyPrint.ANSI.Leijen (Pretty, Doc, empty, bold, red, yellow, colon, pretty, hardline, (<+>), text, black, dullgreen, width, dullblue, magenta, int, space, align, cyan, char, string)
 import Text.PrettyPrint.ANSI.Leijen.Internal (Doc(..))
 
 
@@ -118,7 +119,7 @@ prettyReport fileContent withUnicode (Report isError message markers hints) =
       (markersPerLine, multilineMarkers) = splitMarkersPerLine sortedMarkers
       -- split the list on whether markers are multiline or not
 
-      sortedMarkersPerLine = second (List.sortOn (first $ snd . begin)) <$> List.sortOn fst (HashMap.toList markersPerLine)
+      sortedMarkersPerLine = {- second (List.sortOn (first $ snd . begin)) <$> -} List.sortOn fst (HashMap.toList markersPerLine)
 
       reportFile = maybe (pretty @Position def) (pretty . fst) $ List.safeHead (filter (isThisMarker . snd) sortedMarkers)
       -- the reported file is the file of the first 'This' marker (only one must be present)
@@ -128,7 +129,7 @@ prettyReport fileContent withUnicode (Report isError message markers hints) =
       maxLineNumberLength = maybe 3 (max 3 . length . show . fst . end . fst) $ List.safeLast sortedMarkers
       -- if there are no markers, then default to 3, else get the maximum between 3 and the length of the last marker
 
-      allLineNumbers = List.sort $ List.nub $ (fst <$> HashMap.toList markersPerLine) <> (multilineMarkers >>= \ (Position (bl, _) (el, _) _, _) -> [bl, el])
+      allLineNumbers = List.sort $ List.nub $ (fst <$> sortedMarkersPerLine) <> (multilineMarkers >>= \ (Position (bl, _) (el, _) _, _) -> [bl..el])
 {-
         A report is of the form:
         (1)    [error|warning]: <message>
@@ -263,7 +264,7 @@ prettyAllLines files withUnicode isError leftLen inline multiline (line : ls) =
            <> markerColor isError marker (text if withUnicode then "┤" else ">")
            <> space
 
-      allMarkersInLine = List.sortOn fst $ allInlineMarkersInLine <> allMultilineMarkersInLine
+      allMarkersInLine = {- List.sortOn fst $ -} allInlineMarkersInLine <> allMultilineMarkersInLine
   in  hardline
    <> {- (1) -} linePrefix leftLen line withUnicode <+> additionalPrefix <> getLine_ files allMarkersInLine line isError
    <> {- (2) -} showAllMarkersInLine (not $ null multiline) colorOfFirstMultilineMarker withUnicode isError leftLen allInlineMarkersInLine
@@ -294,7 +295,7 @@ showAllMarkersInLine _ _ _ _ _ []                                               
 showAllMarkersInLine hasMultilines colorMultilinePrefix withUnicode isError leftLen ms =
   let maxMarkerColumn = snd $ end $ fst $ List.last $ List.sortOn (snd . end . fst) ms
       specialPrefix = if hasMultilines then colorMultilinePrefix (text if withUnicode then "│ " else "| ") <> space else empty
-      -- get the maximum end column, so that we know when to stop lookinf for other markers on the same line
+      -- get the maximum end column, so that we know when to stop looking for other markers on the same line
   in  hardline <+> dotPrefix leftLen withUnicode <+> (if List.null ms then empty else specialPrefix <> showMarkers 1 maxMarkerColumn <> showMessages specialPrefix ms maxMarkerColumn)
   where
     showMarkers n lineLen
@@ -311,9 +312,9 @@ showAllMarkersInLine hasMultilines colorMultilinePrefix withUnicode isError left
                     else markerColor isError marker (text if withUnicode then "─" else "-") <> showMarkers (n + 1) lineLen
                     -- if the marker just started on this column, output a caret, else output a dash
 
-    showMessages specialPrefix ms lineLen = case List.safeUnsnoc ms of
+    showMessages specialPrefix ms lineLen = case List.safeUncons ms of
       Nothing                                     -> empty -- no more messages to show
-      Just (pipes, (Position b@(_, bc) _ _, msg)) ->
+      Just ((Position b@(_, bc) _ _, msg), pipes) ->
         let filteredPipes = filter ((/= b) . begin . fst) pipes
             -- record only the pipes corresponding to markers on different starting positions
             nubbedPipes = List.nubBy ((==) `on` (begin . fst)) filteredPipes
@@ -324,22 +325,41 @@ showAllMarkersInLine hasMultilines colorMultilinePrefix withUnicode isError left
             allColumns _ []                                     = (1, [])
             allColumns n ms@((Position (_, bc) _ _, col) : ms')
               | n == bc                                         = bimap (+ 1) (col :) (allColumns (n + 1) ms')
-              | otherwise                                       = bimap (+ 1) (space :) (allColumns (n + 1) ms)
+              | n < bc                                          = bimap (+ 1) (space :) (allColumns (n + 1) ms)
+              | otherwise                                       = bimap (+ 1) (space :) (allColumns (n + 1) ms')
               -- transform the list of remaining markers into a single document line
 
             hasSuccessor = length filteredPipes /= length pipes
 
-            lineStart =
-              let (n, docs) :: (Int, [Doc]) = allColumns 1 allPreviousPipes
+            lineStart pipes =
+              let (n, docs) :: (Int, [Doc]) = allColumns 1 $ List.sortOn (snd . begin . fst) pipes
               in  dotPrefix leftLen withUnicode <+> specialPrefix <> fold docs <> text (replicate (bc - n) ' ')
               -- the start of the line contains the "dot"-prefix as well as all the pipes for all the still not rendered marker messages
 
-            prefix = lineStart <> markerColor isError msg (text if | withUnicode && hasSuccessor -> "├╸"
-                                                                   | withUnicode                 -> "╰╸"
-                                                                   | hasSuccessor                -> "|-"
-                                                                   | otherwise                   -> "`-")
-                                                            -- in case there are two labels on the same column, output a pipe instead of an angle
-                               <+> markerColor isError msg (replaceLinesWith (hardline <+> lineStart <+> text "  ") $ pretty $ markerMessage msg)
+            prefix =
+              let (pipesBefore, pipesAfter) = List.partition ((< bc) . snd . begin . fst) nubbedPipes
+                  -- split the list so that all pipes before can have `|`s but pipes after won't
+
+                  pipesBeforeRendered = pipesBefore <&> second \ marker -> markerColor isError marker (text if withUnicode then "│" else "|")
+                  -- pre-render pipes which are before because they will be shown
+                  
+                  lastBeginPosition = snd . begin . fst <$> List.safeLast (List.sortOn (Down . snd . begin . fst) pipesAfter)
+
+                  lineLen = case lastBeginPosition of
+                    Nothing  -> 0
+                    Just col -> col - bc
+
+                  currentPipe = if | withUnicode && hasSuccessor -> "├"
+                                   | withUnicode                 -> "╰"
+                                   | hasSuccessor                -> "|"
+                                   | otherwise                   -> "`"
+
+                  lineChar = if withUnicode then '─' else '-'
+                  pointChar = if withUnicode then "╸" else "-"
+                                   
+              in lineStart pipesBeforeRendered
+                   <>  markerColor isError msg (text currentPipe <> string (replicate lineLen lineChar) <> text pointChar)
+                   <+> markerColor isError msg (replaceLinesWith (hardline <+> lineStart pipesBeforeRendered <+> text "  ") $ pretty $ markerMessage msg)
 
         in  hardline <+> prefix <> showMessages specialPrefix pipes lineLen
 
