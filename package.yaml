@@ -25,8 +25,8 @@ library:
 ghc-options:
 - -Wall
 - -Wextra
-- -Wmissing-local-signatures
-- -Wmonomorphism-restriction
+# - -Wmissing-local-signatures
+# - -Wmonomorphism-restriction
 
 tests:
   diagnose-tests:

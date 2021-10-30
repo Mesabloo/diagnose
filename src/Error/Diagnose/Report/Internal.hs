@@ -320,8 +320,6 @@ showAllMarkersInLine hasMultilines colorMultilinePrefix withUnicode isError left
             nubbedPipes = List.nubBy ((==) `on` (begin . fst)) filteredPipes
             -- and then remove all duplicates
 
-            allPreviousPipes = nubbedPipes <&> second \ marker -> markerColor isError marker (text if withUnicode then "│" else "|")
-
             allColumns _ []                                     = (1, [])
             allColumns n ms@((Position (_, bc) _ _, col) : ms')
               | n == bc                                         = bimap (+ 1) (col :) (allColumns (n + 1) ms')

@@ -1,3 +1,5 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 import Error.Diagnose
     ( printDiagnostic,
       diagnosticToJson,
@@ -5,22 +7,21 @@ import Error.Diagnose
       err,
       warn,
       Marker(..),
-      Diagnostic(..),
       Report,
       Position(..),
       addFile,
       addReport,
       def )
 
+import qualified Data.ByteString.Lazy as BS
+import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
 
-import System.IO (hPutStrLn, hFlush)
-import Data.List (foldl')
-import qualified Data.ByteString.Lazy as BS
+import System.IO (hPutStrLn)
 
 main :: IO ()
 main = do
-  let files = HashMap.fromList
+  let files :: HashMap FilePath String = HashMap.fromList
         [ ("test.zc", "let id<a>(x : a) : a := x + 1\nrec fix(f) := f(fix(f))\nlet const<a, b>(x : a, y : b) : a := x")
         , ("somefile.zc", "let id<a>(x : a) : a := x\n  + 1")
         ]
