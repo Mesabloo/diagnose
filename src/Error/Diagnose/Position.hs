@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -15,10 +16,12 @@ module Error.Diagnose.Position (Position(..)) where
 import Data.Aeson (ToJSON(..), object, (.=))
 import Data.Default (Default, def)
 import Data.Hashable (Hashable)
+import Data.Text (Text)
 
 import GHC.Generics (Generic(..))
 
-import Text.PrettyPrint.ANSI.Leijen (Pretty(..), text, colon, int)
+import Prettyprinter (Pretty(..), colon)
+-- import Text.PrettyPrint.ANSI.Leijen (Pretty(..), text, colon, int)
 
 
 -- | Contains information about the location about something.
@@ -46,9 +49,9 @@ instance Ord Position where
   Position b1 e1 _ `compare` Position b2 e2 _ = (b1, e1) `compare` (b2, e2)
 
 instance Pretty Position where
-  pretty (Position (bl, bc) (el, ec) f) = text f <> at <> int bl <> colon <> int bc <> dash <> int el <> colon <> int ec
-    where at = text "@"
-          dash = text "-"
+  pretty (Position (bl, bc) (el, ec) f) = pretty f <> at <> pretty bl <> colon <> pretty bc <> dash <> pretty el <> colon <> pretty ec
+    where at = pretty @Text "@"
+          dash = pretty @Text "-"
 
 instance Hashable Position where
 

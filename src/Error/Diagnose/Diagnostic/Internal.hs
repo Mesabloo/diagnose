@@ -30,7 +30,8 @@ import Error.Diagnose.Report.Internal (prettyReport)
 
 import System.IO (Handle)
 
-import Text.PrettyPrint.ANSI.Leijen (Pretty, Doc, hardline, hPutDoc, plain)
+import Prettyprinter (Pretty, Doc, unAnnotate, hardline)
+import Prettyprinter.Render.Terminal (hPutDoc, AnsiStyle)
 
 
 -- | The data type for diagnostic containing messages of an abstract type.
@@ -66,7 +67,7 @@ instance ToJSON msg => ToJSON (Diagnostic msg) where
 prettyDiagnostic :: Pretty msg
                  => Bool                -- ^ Should we use unicode when printing paths?
                  -> Diagnostic msg      -- ^ The diagnostic to print
-                 -> Doc
+                 -> Doc AnsiStyle
 prettyDiagnostic withUnicode (Diagnostic reports file) =
   fold . intersperse hardline $ prettyReport file withUnicode <$> reports
 {-# INLINE prettyDiagnostic #-}
@@ -79,7 +80,7 @@ printDiagnostic :: (MonadIO m, Pretty msg)
                 -> Diagnostic msg           -- ^ The diagnostic to output.
                 -> m ()
 printDiagnostic handle withUnicode withColors diag =
-  liftIO $ hPutDoc handle (unlessId withColors plain $ prettyDiagnostic withUnicode diag)
+  liftIO $ hPutDoc handle (unlessId withColors unAnnotate $ prettyDiagnostic withUnicode diag)
   where
     unlessId cond app = if cond then id else app
     {-# INLINE unlessId #-}
