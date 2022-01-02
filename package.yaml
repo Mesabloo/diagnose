@@ -27,6 +27,11 @@ library:
   - Error.Diagnose.Diagnostic
   - Error.Diagnose.Position
   - Error.Diagnose.Report
+  when:
+  - condition: flag(megaparsec-compat)
+    exposed-modules:
+    - Error.Diagnose.Compat.Hints
+    - Error.Diagnose.Compat.Megaparsec
 
 flags:
   json:
@@ -34,6 +39,11 @@ flags:
       This is disabled by default as this relies on the very heavy dependency Aeson."
     manual: true
     default: false
+  megaparsec-compat:
+    description: "Includes a small compatibility layer (in the module Error.Diagnose.Compat.Megaparsec) to transform megaparsec errors into reports for this library."
+    manual: true
+    default: false
+  # do the same for other parsing libraries like parsec or attoparsec
 
 when:
   - condition: flag(json)
@@ -42,6 +52,10 @@ when:
 
     cpp-options:
     - -DUSE_AESON
+  - condition: flag(megaparsec-compat)
+    dependencies:
+    - megaparsec >= 9.0.0
+    - containers == 0.6.2.1
 
 ghc-options:
 - -Wall
