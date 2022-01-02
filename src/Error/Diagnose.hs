@@ -16,6 +16,9 @@ module Error.Diagnose
     -- *** Exporting a diagnostic to JSON
     -- $diagnostic_json
 
+    -- ** Compatibility layers for popular parsing libraries
+    -- $compatibility_layers
+
     -- * Re-exports
     module Export ) where
 
@@ -165,4 +168,65 @@ import Error.Diagnose.Diagnostic as Export
    > }
 
    This is particularly useful in the context of a LSP server, where outputting or parsing a raw error yields strange results or is unnecessarily complicated.
+
+   Please note that this requires the flag @diagnose:json@ to be enabled (it is disabled by default in order not to include @aeson@, which is a heavy library).
+-}
+
+{- $compatibility_layers 
+
+   There are many parsing libraries available in the Haskell ecosystem, each coming with its own way of handling errors.
+   Eventually, one needs to be able to map errors from these libraries to 'Diagnostic's, without having to include additional code for doing so.
+   This is where compatibility layers come in handy.
+
+   As of now, there are compatibility layers for these libraries:
+
+   - @megaparsec >=9@, in the module "Error.Diagnose.Compat.Megaparsec". This needs the flag @diagnose:megaparsec-compat@ to be enabled.
+
+       Using the compatibility layer is very easy, as it is designed to be as simple as possible.
+       One simply needs to convert the 'Text.Megaparsec.ParseErrorBundle' which is returned by running a parser into a 'Diagnostic' by using 'Error.Diagnose.Compat.Megaparsec.diagnosticFromBundle'.
+       Several wrappers are included for easy creation of kinds (error, warning) of diagnostics.
+
+       Note that the returned diagnostic does not include file contents, which needs to be added manually afterwards.
+
+       As a quick example:
+
+       > import qualified Text.Megaparsec as MP
+       > import qualified Text.Megaparsec.Char as MP
+       > import qualified Text.Megaparsec.Char.Lexer as MP
+       >
+       > let filename = "<interactive>"
+       >     content  = "00000a2223266"
+       >
+       > let myParser = MP.some MP.decimal <* MP.eof
+       >
+       > let res      = MP.runParser myParser filename content
+       >
+       > case res of
+       >   Left bundle ->
+       >     let diag  = errorDiagnosticFromBundle "Parse error on input" Nothing bundle
+       >            --   Creates a new diagnostic with no default hints from the bundle returned by megaparsec
+       >         diag' = addFile diag filename content
+       >            --   Add the file used when parsing with the same filename given to 'MP.runParser'
+       >     in printDiagnostic stderr True True diag'
+       >   Right res   -> print res
+
+       This example will return the following error message (assuming default instances for @'Error.Diagnose.Compat.Megaparsec.HasHints' 'Data.Void.Void' msg@):
+
+       > [error]: Parse error on input
+       >      ╭─▶ <interactive>@1:6-1:7
+       >      │
+       >    1 │ 00000a2223266
+       >      •      ┬ 
+       >      •      ├╸ unexpected 'a'
+       >      •      ╰╸ expecting digit, end of input, or integer
+       > ─────╯
+
+   === Common errors:
+
+   - @No instance for (HasHints ??? msg) arising from a use of ‘errorDiagnosticFromBundle’@ (@???@ is any type, depending on your parser's custom error type):
+
+       The typeclass 'Error.Diagnose.Compat.Megaparsec.HasHints' does not have any default instances, because treatments of custom errors is highly dependent on who is using the library.
+       As such, you will need to create orphan instances for your parser's error type.
+
+       Note that the message type @msg@ can be left abstract if the implements of 'Error.Diagnose.Compat.Hints.hints' is @hints _ = mempty@.
 -}
