@@ -16,7 +16,9 @@ import Error.Diagnose
       addReport,
       def )
 
+#ifdef USE_AESON
 import qualified Data.ByteString.Lazy as BS
+#endif
 import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
 
