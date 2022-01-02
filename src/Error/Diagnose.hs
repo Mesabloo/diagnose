@@ -19,6 +19,15 @@ module Error.Diagnose
     -- ** Compatibility layers for popular parsing libraries
     -- $compatibility_layers
 
+    -- *** megaparsec >= 9.0.0 ("Error.Diagnose.Compat.Megaparsec")
+    -- $compatibility_megaparsec
+     
+    -- *** parsec >= 3.1.14.0 ("Error.Diagnose.Compat.Parsec")
+    -- $compatibility_parsec
+    
+    -- *** Common errors
+    -- $compatibility_errors
+
     -- * Re-exports
     module Export ) where
 
@@ -123,7 +132,7 @@ import Error.Diagnose.Diagnostic as Export
          Here are two examples of the same diagnostic, the first output with unicode characters, and the second output with ASCII characters:
 
          > [error]: Error with one marker in bounds
-         >      ╭─🢒 test.zc@1:25-1:30
+         >      ╭─▶ test.zc@1:25-1:30
          >      │
          >    1 │ let id<a>(x : a) : a := x + 1
          >      •                         ┬────
@@ -179,49 +188,95 @@ import Error.Diagnose.Diagnostic as Export
    This is where compatibility layers come in handy.
 
    As of now, there are compatibility layers for these libraries:
+-}
 
-   - @megaparsec >=9@, in the module "Error.Diagnose.Compat.Megaparsec". This needs the flag @diagnose:megaparsec-compat@ to be enabled.
+{- $compatibility_megaparsec
 
-       Using the compatibility layer is very easy, as it is designed to be as simple as possible.
-       One simply needs to convert the 'Text.Megaparsec.ParseErrorBundle' which is returned by running a parser into a 'Diagnostic' by using 'Error.Diagnose.Compat.Megaparsec.diagnosticFromBundle'.
-       Several wrappers are included for easy creation of kinds (error, warning) of diagnostics.
+   This needs the flag @diagnose:megaparsec-compat@ to be enabled.
 
-       Note that the returned diagnostic does not include file contents, which needs to be added manually afterwards.
+   Using the compatibility layer is very easy, as it is designed to be as simple as possible.
+   One simply needs to convert the 'Text.Megaparsec.ParseErrorBundle' which is returned by running a parser into a 'Diagnostic' by using 'Error.Diagnose.Compat.Megaparsec.diagnosticFromBundle'.
+   Several wrappers are included for easy creation of kinds (error, warning) of diagnostics.
 
-       As a quick example:
+   __Note:__ the returned diagnostic does not include file contents, which needs to be added manually afterwards.
 
-       > import qualified Text.Megaparsec as MP
-       > import qualified Text.Megaparsec.Char as MP
-       > import qualified Text.Megaparsec.Char.Lexer as MP
-       >
-       > let filename = "<interactive>"
-       >     content  = "00000a2223266"
-       >
-       > let myParser = MP.some MP.decimal <* MP.eof
-       >
-       > let res      = MP.runParser myParser filename content
-       >
-       > case res of
-       >   Left bundle ->
-       >     let diag  = errorDiagnosticFromBundle "Parse error on input" Nothing bundle
-       >            --   Creates a new diagnostic with no default hints from the bundle returned by megaparsec
-       >         diag' = addFile diag filename content
-       >            --   Add the file used when parsing with the same filename given to 'MP.runParser'
-       >     in printDiagnostic stderr True True diag'
-       >   Right res   -> print res
+   As a quick example:
 
-       This example will return the following error message (assuming default instances for @'Error.Diagnose.Compat.Megaparsec.HasHints' 'Data.Void.Void' msg@):
+   > import qualified Text.Megaparsec as MP
+   > import qualified Text.Megaparsec.Char as MP
+   > import qualified Text.Megaparsec.Char.Lexer as MP
+   >
+   > let filename = "<interactive>"
+   >     content  = "00000a2223266"
+   >
+   > let myParser = MP.some MP.decimal <* MP.eof
+   >
+   > let res      = MP.runParser myParser filename content
+   >
+   > case res of
+   >   Left bundle ->
+   >     let diag  = errorDiagnosticFromBundle "Parse error on input" Nothing bundle
+   >            --   Creates a new diagnostic with no default hints from the bundle returned by megaparsec
+   >         diag' = addFile diag filename content
+   >            --   Add the file used when parsing with the same filename given to 'MP.runParser'
+   >     in printDiagnostic stderr True True diag'
+   >   Right res   -> print res
 
-       > [error]: Parse error on input
-       >      ╭─▶ <interactive>@1:6-1:7
-       >      │
-       >    1 │ 00000a2223266
-       >      •      ┬ 
-       >      •      ├╸ unexpected 'a'
-       >      •      ╰╸ expecting digit, end of input, or integer
-       > ─────╯
+   This example will return the following error message (assuming default instances for @'Error.Diagnose.Compat.Megaparsec.HasHints' 'Data.Void.Void' msg@):
 
-   === Common errors:
+   > [error]: Parse error on input
+   >      ╭─▶ <interactive>@1:6-1:7
+   >      │
+   >    1 │ 00000a2223266
+   >      •      ┬ 
+   >      •      ├╸ unexpected 'a'
+   >      •      ╰╸ expecting digit, end of input, or integer
+   > ─────╯
+-}
+
+{- $compatibility_parsec
+
+   This needs the flag @diagnose:parsec-compat@ to be enabled.
+
+   This compatibility layer allows easily converting 'Text.Parsec.Error.ParseError's into a single-report diagnostic containing all available information such
+   as unexpected/expected tokens or error messages.
+   The function 'Error.Diagnose.Compat.Parsec.diagnosticFromParseError' is used to perform the conversion between a 'Text.Parsec.Error.ParseError' and a 'Diagnostic'.
+
+   __Note:__ the returned diagnostic does not include file contents, which needs to be added manually afterwards.
+
+   Quick example:
+
+   > import qualified Text.Parsec as P
+   >
+   > let filename = "<interactive>"
+   >     content  = "00000a2223266"
+   >
+   > let myParser = P.many1 P.digit <* P.eof
+   >
+   > let res      = P.parse myParser filename content
+   >
+   > case res of
+   >   Left error ->
+   >     let diag  = errorDiagnosticFromParseError "Parse error on input" Nothing error
+   >            --   Creates a new diagnostic with no default hints from the bundle returned by megaparsec
+   >         diag' = addFile diag filename content
+   >            --   Add the file used when parsing with the same filename given to 'MP.runParser'
+   >     in printDiagnostic stderr True True diag'
+   >   Right res  -> print res
+
+   This will output the following errr on @stderr@:
+
+   > [error]: Parse error on input
+   >      ╭─▶ <interactive>@1:6-1:7
+   >      │
+   >    1 │ 00000a2223266
+   >      •      ┬ 
+   >      •      ├╸ unexpected 'a'
+   >      •      ╰╸ expecting any of digit, end of input
+   > ─────╯
+-}
+
+{- $compatibility_errors
 
    - @No instance for (HasHints ??? msg) arising from a use of ‘errorDiagnosticFromBundle’@ (@???@ is any type, depending on your parser's custom error type):
 
@@ -229,4 +284,5 @@ import Error.Diagnose.Diagnostic as Export
        As such, you will need to create orphan instances for your parser's error type.
 
        Note that the message type @msg@ can be left abstract if the implements of 'Error.Diagnose.Compat.Hints.hints' is @hints _ = mempty@.
+
 -}

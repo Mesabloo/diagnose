@@ -58,7 +58,7 @@ diagnosticFromParseError isError msg (fromMaybe [] -> defaultHints) error =
                             , let marker = This $ fromString $ "unexpected " <> unexpected ]
       <> [ (source, marker) | msg <- messages
                             , let marker = This $ fromString msg ]
-      <> [ (source, Where $ fromString $ "expected any of " <> intercalate ", " expectedList) ]
+      <> [ (source, Where $ fromString $ "expecting any of " <> intercalate ", " expectedList) ]
 
 -- | Generates an error diagnostic from a 'PE.ParseError'.
 errorDiagnosticFromParseError
