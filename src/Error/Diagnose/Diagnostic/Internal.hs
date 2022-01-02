@@ -20,8 +20,8 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 
 #ifdef USE_AESON
 import Data.Aeson (ToJSON(..), encode, object, (.=))
-#endif
 import Data.ByteString.Lazy (ByteString)
+#endif
 import Data.Default (Default, def)
 import Data.Foldable (fold)
 import Data.HashMap.Lazy (HashMap)
