@@ -4,6 +4,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE CPP #-}
 
 {-# OPTIONS -Wno-name-shadowing #-}
 
@@ -22,7 +23,9 @@ Portability : Portable
 -}
 module Error.Diagnose.Report.Internal where
 
+#ifdef USE_AESON
 import Data.Aeson (ToJSON(..), object, (.=))
+#endif
 import Data.Bifunctor (first, second, bimap)
 import Data.Default (def)
 import Data.Foldable (fold)
@@ -39,8 +42,6 @@ import Error.Diagnose.Position
 import Prettyprinter (Pretty(..), Doc, hardline, (<+>), align, space, annotate, width, colon)
 import Prettyprinter.Internal (Doc(..))
 import Prettyprinter.Render.Terminal (color, colorDull, Color(..), bold, AnsiStyle)
--- import Text.PrettyPrint.ANSI.Leijen (Pretty, Doc, mempty, bold, red, yellow, colon, pretty, hardline, (<+>), text, black, dullgreen, width, dullblue, magenta, int, space, align, cyan, char, string)
--- import Text.PrettyPrint.ANSI.Leijen.Internal (Doc(..))
 
 
 -- | The type of diagnostic reports with abstract message type.
@@ -51,6 +52,7 @@ data Report msg
         [(Position, Marker msg)]        -- ^ A map associating positions with marker to show under the source code.
         [msg]                           -- ^ A list of hints to add at the end of the report.
 
+#ifdef USE_AESON
 instance ToJSON msg => ToJSON (Report msg) where
   toJSON (Report isError msg markers hints) =
     object [ "kind" .= (if isError then "error" else "warning" :: String)
@@ -71,6 +73,7 @@ instance ToJSON msg => ToJSON (Report msg) where
                    Maybe m -> [ "message" .= m
                               , "kind" .= ("maybe" :: String)
                               ]
+#endif
 
 -- | The type of markers with abstract message type, shown under code lines.
 data Marker msg
@@ -174,6 +177,7 @@ dotPrefix :: Int        -- ^ The length of the left space before the bullet.
           -> Bool       -- ^ Whether to print with unicode characters or not.
           -> Doc AnsiStyle
 dotPrefix leftLen withUnicode = pad leftLen ' ' mempty <+> annotate (bold <> color Black) (if withUnicode then "•" else ":")
+{-# INLINE dotPrefix #-}
 
 -- | Creates a "pipe"-prefix for a report line where there is no code.
 --
@@ -185,6 +189,7 @@ pipePrefix :: Int       -- ^ The length of the left space before the pipe.
            -> Bool      -- ^ Whether to print with unicode characters or not.
            -> Doc AnsiStyle
 pipePrefix leftLen withUnicode = pad leftLen ' ' mempty <+> annotate (bold <> color Black) (if withUnicode then "│" else "|")
+{-# INLINE pipePrefix #-}
 
 -- | Creates a line-prefix for a report line containing source code
 --
@@ -201,6 +206,7 @@ linePrefix :: Int       -- ^ The length of the amount of space to span before th
 linePrefix leftLen lineNo withUnicode =
   let lineNoLen = length (show lineNo)
   in annotate (bold <> color Black) $ mempty <+> pad (leftLen - lineNoLen) ' ' mempty <> pretty lineNo <+> if withUnicode then "│" else "|"
+{-# INLINE linePrefix #-}
 
 -- |
 splitMarkersPerLine :: [(Position, Marker msg)] -> (HashMap Int [(Position, Marker msg)], [(Position, Marker msg)])
@@ -391,12 +397,14 @@ markerColor :: Bool             -- ^ Whether the marker is in an error context o
 markerColor isError (This _) = if isError then color Red else color Yellow
 markerColor _ (Where _)      = colorDull Blue
 markerColor _ (Maybe _)      = color Magenta
+{-# INLINE markerColor #-}
 
 -- | Retrieves the message held by a marker.
 markerMessage :: Marker msg -> msg
 markerMessage (This m)  = m
 markerMessage (Where m) = m
 markerMessage (Maybe m) = m
+{-# INLINE markerMessage #-}
 
 -- | Pretty prints all hints.
 prettyAllHints :: Pretty msg => [msg] -> Int -> Bool -> Doc AnsiStyle

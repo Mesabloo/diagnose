@@ -1,8 +1,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE CPP #-}
 
 import Error.Diagnose
     ( printDiagnostic,
+#ifdef USE_AESON
       diagnosticToJson,
+#endif
       stdout,
       err,
       warn,
@@ -60,8 +63,10 @@ main = do
   printDiagnostic stdout True True diag
   hPutStrLn stdout "\n\nWithout unicode: ----------------------\n"
   printDiagnostic stdout False True diag
+#ifdef USE_AESON
   hPutStrLn stdout "\n\nAs JSON: ------------------------------\n"
   BS.hPutStr stdout (diagnosticToJson diag)
+#endif
   hPutStrLn stdout "\n"
 
 errorNoMarkersNoHints :: Report String

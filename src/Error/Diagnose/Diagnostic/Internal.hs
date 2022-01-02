@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE CPP #-}
 
 {-|
 Module      : Error.Diagnose.Diagnostic.Internal
@@ -17,7 +18,9 @@ module Error.Diagnose.Diagnostic.Internal (module Error.Diagnose.Diagnostic.Inte
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
 
+#ifdef USE_AESON
 import Data.Aeson (ToJSON(..), encode, object, (.=))
+#endif
 import Data.ByteString.Lazy (ByteString)
 import Data.Default (Default, def)
 import Data.Foldable (fold)
@@ -51,6 +54,7 @@ instance Default (Diagnostic msg) where
 instance Semigroup (Diagnostic msg) where
   Diagnostic rs1 file <> Diagnostic rs2 _ = Diagnostic (rs1 <> rs2) file
 
+#ifdef USE_AESON
 instance ToJSON msg => ToJSON (Diagnostic msg) where
   toJSON (Diagnostic reports files) =
     object [ "files" .= fmap toJSONFile (HashMap.toList files)
@@ -61,6 +65,7 @@ instance ToJSON msg => ToJSON (Diagnostic msg) where
         object [ "name" .= path
                , "content" .= content
                ]
+#endif
 
 -- | Pretty prints a diagnostic into a 'Doc'ument that can be output using
 --   'Text.PrettyPrint.ANSI.Leijen.hPutDoc' or 'Text.PrettyPrint.ANSI.Leijen.displayIO'.
@@ -93,6 +98,7 @@ addFile :: Diagnostic msg
         -> Diagnostic msg
 addFile (Diagnostic reports files) path content =
   Diagnostic reports (HashMap.insert path (lines content) files)
+{-# INLINE addFile #-}
 
 -- | Inserts a new report into a diagnostic.
 addReport :: Diagnostic msg
@@ -100,7 +106,9 @@ addReport :: Diagnostic msg
           -> Diagnostic msg
 addReport (Diagnostic reports files) report =
   Diagnostic (report : reports) files
+{-# INLINE addReport #-}
 
+#ifdef USE_AESON
 -- | Creates a JSON object from a diagnostic, containing those fields (only types are indicated):
 --
 --   > { files:
@@ -124,3 +132,4 @@ addReport (Diagnostic reports files) report =
 --   > }
 diagnosticToJson :: ToJSON msg => Diagnostic msg -> ByteString
 diagnosticToJson = encode
+#endif

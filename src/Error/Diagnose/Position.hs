@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE CPP #-}
 
 {-|
 Module      : Error.Diagnose.Diagnostic
@@ -13,7 +14,9 @@ Portability : Portable
 -}
 module Error.Diagnose.Position (Position(..)) where
 
+#ifdef USE_AESON
 import Data.Aeson (ToJSON(..), object, (.=))
+#endif
 import Data.Default (Default, def)
 import Data.Hashable (Hashable)
 import Data.Text (Text)
@@ -58,9 +61,11 @@ instance Hashable Position where
 instance Default Position where
   def = Position (1, 1) (1, 1) "<no-file>"
 
+#ifdef USE_AESON
 instance ToJSON Position where
   toJSON (Position (bl, bc) (el, ec) file) =
     object [ "beginning" .= object [ "line" .= bl, "column" .= bc ]
            , "end" .= object [ "line" .= el, "column" .= ec ]
            , "file" .= file
            ]
+#endif

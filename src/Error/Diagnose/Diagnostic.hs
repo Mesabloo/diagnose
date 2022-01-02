@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 {-|
 Module      : Error.Diagnose.Diagnostic
 Description : Diagnostic definition and pretty printing
@@ -10,6 +12,11 @@ module Error.Diagnose.Diagnostic
   ( -- * Re-exports
     module Export ) where
 
-import Error.Diagnose.Diagnostic.Internal as Export (Diagnostic, def, printDiagnostic, diagnosticToJson, addFile, addReport)
+import Error.Diagnose.Diagnostic.Internal as Export
+  (Diagnostic, def, printDiagnostic,
+#ifdef USE_AESON
+  diagnosticToJson,
+#endif 
+  addFile, addReport)
 
 import System.IO as Export (stdout, stderr)

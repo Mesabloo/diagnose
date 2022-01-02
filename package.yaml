@@ -12,7 +12,6 @@ dependencies:
 - unordered-containers == 0.2.14.0
 - hashable == 1.3.0.0
 - data-default == 0.7.1.1
-- aeson == 1.5.6.0
 - bytestring == 0.10.12.0
 - text == 1.2.4.1
 
@@ -23,6 +22,26 @@ default-extensions:
 
 library:
   source-dirs: src
+  exposed-modules:
+  - Error.Diagnose
+  - Error.Diagnose.Diagnostic
+  - Error.Diagnose.Position
+  - Error.Diagnose.Report
+
+flags:
+  json:
+    description: "Allows exporting diagnostics as JSON.
+      This is disabled by default as this relies on the very heavy dependency Aeson."
+    manual: true
+    default: false
+
+when:
+  - condition: flag(json)
+    dependencies:
+    - aeson == 1.5.6.0
+
+    cpp-options:
+    - -DUSE_AESON
 
 ghc-options:
 - -Wall
