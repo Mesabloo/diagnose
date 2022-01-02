@@ -29,6 +29,11 @@ flag megaparsec-compat
   manual: True
   default: False
 
+flag parsec-compat
+  description: Includes a small compatibility layer (in the module Error.Diagnose.Compat.Parsec) to transform parsec errors into reports for this library.
+  manual: True
+  default: False
+
 library
   exposed-modules:
       Error.Diagnose
@@ -68,15 +73,53 @@ library
     exposed-modules:
         Error.Diagnose.Compat.Hints
         Error.Diagnose.Compat.Megaparsec
+  if flag(parsec-compat)
+    exposed-modules:
+        Error.Diagnose.Compat.Hints
+        Error.Diagnose.Compat.Megaparsec
   default-language: Haskell2010
 
-test-suite diagnose-tests
+test-suite diagnose-megaparsec-tests
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
       Paths_diagnose
   hs-source-dirs:
-      test
+      test/megaparsec
+  default-extensions:
+      OverloadedStrings
+      LambdaCase
+      BlockArguments
+  ghc-options: -Wall -Wextra -threaded -rtsopts -with-rtsopts=-N -O0 -g
+  build-depends:
+      base >=4.7 && <5
+    , bytestring ==0.10.12.0
+    , data-default ==0.7.1.1
+    , diagnose
+    , hashable ==1.3.0.0
+    , prettyprinter ==1.7.0
+    , prettyprinter-ansi-terminal ==1.1.2
+    , text ==1.2.4.1
+    , unordered-containers ==0.2.14.0
+  if flag(json)
+    cpp-options: -DUSE_AESON
+    build-depends:
+        aeson ==1.5.6.0
+  if flag(megaparsec-compat)
+    build-depends:
+        containers ==0.6.2.1
+      , megaparsec >=9.0.0
+  if !(flag(megaparsec-compat))
+    buildable: False
+  default-language: Haskell2010
+
+test-suite diagnose-rendering-tests
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_diagnose
+  hs-source-dirs:
+      test/rendering
   default-extensions:
       OverloadedStrings
       LambdaCase

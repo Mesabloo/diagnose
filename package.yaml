@@ -32,6 +32,10 @@ library:
     exposed-modules:
     - Error.Diagnose.Compat.Hints
     - Error.Diagnose.Compat.Megaparsec
+  - condition: flag(parsec-compat)
+    exposed-modules:
+    - Error.Diagnose.Compat.Hints
+    - Error.Diagnose.Compat.Megaparsec
 
 flags:
   json:
@@ -41,6 +45,10 @@ flags:
     default: false
   megaparsec-compat:
     description: "Includes a small compatibility layer (in the module Error.Diagnose.Compat.Megaparsec) to transform megaparsec errors into reports for this library."
+    manual: true
+    default: false
+  parsec-compat:
+    description: "Includes a small compatibility layer (in the module Error.Diagnose.Compat.Parsec) to transform parsec errors into reports for this library."
     manual: true
     default: false
   # do the same for other parsing libraries like parsec or attoparsec
@@ -64,9 +72,9 @@ ghc-options:
 # - -Wmonomorphism-restriction
 
 tests:
-  diagnose-tests:
+  diagnose-rendering-tests:
     main:                Spec.hs
-    source-dirs:         test
+    source-dirs:         test/rendering
     ghc-options:
     - -threaded
     - -rtsopts
@@ -75,3 +83,17 @@ tests:
     - -g
     dependencies:
     - diagnose
+  diagnose-megaparsec-tests:
+    main:                  Spec.hs
+    source-dirs:           test/megaparsec
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -O0
+    - -g
+    dependencies:
+    - diagnose
+    when:
+     - condition: ! '!(flag(megaparsec-compat))'
+       buildable: false
