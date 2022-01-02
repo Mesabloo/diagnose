@@ -14,7 +14,6 @@ import Data.Void (Void)
 
 import Error.Diagnose
 import Error.Diagnose.Compat.Megaparsec
-import Error.Diagnose.Compat.Hints
 
 import qualified Text.Megaparsec as MP
 import qualified Text.Megaparsec.Char as MP

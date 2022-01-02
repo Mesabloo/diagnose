@@ -12,6 +12,7 @@ module Error.Diagnose.Compat.Megaparsec
 ( diagnosticFromBundle
 , errorDiagnosticFromBundle
 , warningDiagnosticFromBundle
+, module Error.Diagnose.Compat.Hints
 ) where
 
 import Data.Bifunctor (second)

@@ -30,11 +30,9 @@ library:
   when:
   - condition: flag(megaparsec-compat)
     exposed-modules:
-    - Error.Diagnose.Compat.Hints
     - Error.Diagnose.Compat.Megaparsec
   - condition: flag(parsec-compat)
     exposed-modules:
-    - Error.Diagnose.Compat.Hints
     - Error.Diagnose.Compat.Megaparsec
 
 flags:
