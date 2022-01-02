@@ -4,5 +4,7 @@ cradle:
       component: "diagnose:test:diagnose-rendering-tests"
     - path: "./test/megaparsec"
       component: "diagnose:test:diagnose-megaparsec-tests"
+    - path: "./test/parsec"
+      component: "diagnose:test:diagnose-parsec-tests"
     - path: "./src"
       component: "diagnose:lib"
