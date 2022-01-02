@@ -2,7 +2,7 @@
 
 module Error.Diagnose.Compat.Hints where
     
--- | A class mapping custom errors of type 'e' with messages of type 'msg'.
+-- | A class mapping custom errors of type @e@ with messages of type @msg@.
 class HasHints e msg where
   -- | Defines all the hints associated with a given custom error.
   hints :: e -> [msg]
