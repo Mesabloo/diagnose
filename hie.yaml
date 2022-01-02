@@ -1,6 +1,8 @@
 cradle:
   stack:
-    - path: "./test"
-      component: "diagnose:test:diagnose-tests"
+    - path: "./test/rendering"
+      component: "diagnose:test:diagnose-rendering-tests"
+    - path: "./test/megaparsec"
+      component: "diagnose:test:diagnose-megaparsec-tests"
     - path: "./src"
       component: "diagnose:lib"
