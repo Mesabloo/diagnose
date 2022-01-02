@@ -284,12 +284,13 @@ getLine_ :: HashMap FilePath [String] -> [(Position, Marker msg)] -> Int -> Bool
 getLine_ files markers line isError = case List.safeIndex (line - 1) =<< (HashMap.!?) files . file . fst =<< List.safeHead markers of
   Nothing   -> "<no-line>"
   Just code -> fold $ indexed code <&> \ (n, c) ->
-    let colorizingMarkers = flip filter markers \ (Position (bl, bc) (el, ec) _, _) -> if bl == el
-                                                                                       then n >= bc && n < ec
-                                                                                       else (bl == line && n >= bc) || (el == line && n < ec)
+    let colorizingMarkers = flip filter markers
+          \ (Position (bl, bc) (el, ec) _, _) ->
+             if bl == el
+             then n >= bc && n < ec
+             else (bl == line && n >= bc) || (el == line && n < ec)
 
-    in  maybe id ((\ m -> annotate (bold <> markerColor isError m)) . snd) (List.safeLast colorizingMarkers) (pretty c)
--- TODO: color the code where there are markers, still prioritizing right markers over left ones
+    in  maybe id ((\ m -> annotate (bold <> markerColor isError m)) . snd) (List.safeHead colorizingMarkers) (pretty c)
   where
     indexed :: [a] -> [(Int, a)]
     indexed = goIndexed 1
@@ -313,13 +314,12 @@ showAllMarkersInLine hasMultilines colorMultilinePrefix withUnicode isError left
         let allMarkers = flip filter ms \ (Position (_, bc) (_, ec) _, _) -> n >= bc && n < ec
             -- only consider markers which span onto the current column
         in  case allMarkers of
-              []      -> space <> showMarkers (n + 1) lineLen
-              markers ->
-                let (Position{..}, marker) = List.last markers
-                in  if snd begin == n
-                    then annotate (markerColor isError marker) (if withUnicode then "┬" else "^") <> showMarkers (n + 1) lineLen
-                    else annotate (markerColor isError marker) (if withUnicode then "─" else "-") <> showMarkers (n + 1) lineLen
-                    -- if the marker just started on this column, output a caret, else output a dash
+              []                      -> space <> showMarkers (n + 1) lineLen
+              (Position{..},marker):_ ->
+                if snd begin == n
+                then annotate (markerColor isError marker) (if withUnicode then "┬" else "^") <> showMarkers (n + 1) lineLen
+                else annotate (markerColor isError marker) (if withUnicode then "─" else "-") <> showMarkers (n + 1) lineLen
+                -- if the marker just started on this column, output a caret, else output a dash
 
     showMessages specialPrefix ms lineLen = case List.safeUncons ms of
       Nothing                                     -> mempty -- no more messages to show
