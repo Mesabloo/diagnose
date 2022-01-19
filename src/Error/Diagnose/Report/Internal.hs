@@ -266,15 +266,19 @@ prettyAllLines files withUnicode isError leftLen inline multiline (line : ls) =
 
       allMultilineMarkersInLine = flip filter multiline \ (Position (bl, _) (el, _) _, _) -> bl == line || el == line
 
+      allMultilineMarkersSpanningLine = flip filter multiline \ (Position (bl, _) (el, _) _, _) -> bl < line && el > line
+
       inSpanOfMultiline = flip any multiline \ (Position (bl, _) (el, _) _, _) -> bl <= line && el >= line
 
-      colorOfFirstMultilineMarker = maybe id (annotate . markerColor isError . snd) (List.safeHead allMultilineMarkersInLine)
+      colorOfFirstMultilineMarker = maybe id (annotate . markerColor isError . snd) (List.safeHead $ allMultilineMarkersInLine <> allMultilineMarkersSpanningLine)
       -- take the first multiline marker to color the entire line, if there is one
 
       !additionalPrefix = case allMultilineMarkersInLine of
-        []                                     ->
+        []                                           ->
           if not $ null multiline
-          then "   "
+          then if not $ null allMultilineMarkersSpanningLine
+               then colorOfFirstMultilineMarker if withUnicode then "│  " else "|  "
+               else "   "
           else mempty
         (p@(Position _ (el, _) _), marker) : _ ->
           let hasPredecessor = el == line || maybe False ((/=) p . fst . fst) (List.safeUncons multiline)
@@ -287,14 +291,14 @@ prettyAllLines files withUnicode isError leftLen inline multiline (line : ls) =
 
       allMarkersInLine = {- List.sortOn fst $ -} allInlineMarkersInLine <> allMultilineMarkersInLine
   in  hardline
-   <> {- (1) -} linePrefix leftLen line withUnicode <+> additionalPrefix <> getLine_ files allMarkersInLine line isError
+   <> {- (1) -} linePrefix leftLen line withUnicode <+> additionalPrefix <> getLine_ files (allMarkersInLine <> allMultilineMarkersSpanningLine) line isError
    <> {- (2) -} showAllMarkersInLine (not $ null multiline) inSpanOfMultiline colorOfFirstMultilineMarker withUnicode isError leftLen allInlineMarkersInLine
    <> {- (3) -} prettyAllLines files withUnicode isError leftLen inline multiline ls
 
 -- |
 getLine_ :: HashMap FilePath [String] -> [(Position, Marker msg)] -> Int -> Bool -> Doc AnsiStyle
 getLine_ files markers line isError = case List.safeIndex (line - 1) =<< (HashMap.!?) files . file . fst =<< List.safeHead markers of
-  Nothing   -> "<no-line>"
+  Nothing   -> annotate (bold <> colorDull Magenta) "<no line>"
   Just code -> fold $ indexed code <&> \ (n, c) ->
     let colorizingMarkers = flip filter markers
           \ (Position (bl, bc) (el, ec) _, _) ->

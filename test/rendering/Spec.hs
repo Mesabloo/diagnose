@@ -254,5 +254,5 @@ errorMultilineAfterSingleLine =
 errorOnEmptyLine :: Report String
 errorOnEmptyLine =
   err "Error on empty line"
-    [ (Position (2, 5) (3, 8) "err.nst", This "error on empty line") ]
+    [ (Position (1, 5) (3, 8) "err.nst", This "error on empty line") ]
     []
