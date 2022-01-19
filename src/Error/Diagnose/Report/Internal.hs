@@ -52,6 +52,13 @@ data Report msg
         [(Position, Marker msg)]        -- ^ A map associating positions with marker to show under the source code.
         [msg]                           -- ^ A list of hints to add at the end of the report.
 
+instance Semigroup msg => Semigroup (Report msg) where
+  Report isError1 msg1 pos1 hints1 <> Report isError2 msg2 pos2 hints2 =
+    Report (isError1 || isError2) (msg1 <> msg2) (pos1 <> pos2) (hints1 <> hints2)
+
+instance Monoid msg => Monoid (Report msg) where
+  mempty = Report False mempty mempty mempty
+
 #ifdef USE_AESON
 instance ToJSON msg => ToJSON (Report msg) where
   toJSON (Report isError msg markers hints) =
