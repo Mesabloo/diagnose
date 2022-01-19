@@ -39,6 +39,7 @@ library
       Error.Diagnose
       Error.Diagnose.Diagnostic
       Error.Diagnose.Position
+      Error.Diagnose.Pretty
       Error.Diagnose.Report
   other-modules:
       Data.List.Safe
