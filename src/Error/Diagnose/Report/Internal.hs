@@ -266,11 +266,16 @@ prettyAllLines files withUnicode isError leftLen inline multiline (line : ls) =
 
       allMultilineMarkersInLine = flip filter multiline \ (Position (bl, _) (el, _) _, _) -> bl == line || el == line
 
+      inSpanOfMultiline = flip any multiline \ (Position (bl, _) (el, _) _, _) -> bl <= line && el >= line
+
       colorOfFirstMultilineMarker = maybe id (annotate . markerColor isError . snd) (List.safeHead allMultilineMarkersInLine)
       -- take the first multiline marker to color the entire line, if there is one
 
       !additionalPrefix = case allMultilineMarkersInLine of
-        []                                     -> mempty
+        []                                     ->
+          if not $ null multiline
+          then "   "
+          else mempty
         (p@(Position _ (el, _) _), marker) : _ ->
           let hasPredecessor = el == line || maybe False ((/=) p . fst . fst) (List.safeUncons multiline)
           in  colorOfFirstMultilineMarker (if | hasPredecessor && withUnicode -> "├"
@@ -283,7 +288,7 @@ prettyAllLines files withUnicode isError leftLen inline multiline (line : ls) =
       allMarkersInLine = {- List.sortOn fst $ -} allInlineMarkersInLine <> allMultilineMarkersInLine
   in  hardline
    <> {- (1) -} linePrefix leftLen line withUnicode <+> additionalPrefix <> getLine_ files allMarkersInLine line isError
-   <> {- (2) -} showAllMarkersInLine (not $ null multiline) colorOfFirstMultilineMarker withUnicode isError leftLen allInlineMarkersInLine
+   <> {- (2) -} showAllMarkersInLine (not $ null multiline) inSpanOfMultiline colorOfFirstMultilineMarker withUnicode isError leftLen allInlineMarkersInLine
    <> {- (3) -} prettyAllLines files withUnicode isError leftLen inline multiline ls
 
 -- |
@@ -307,11 +312,15 @@ getLine_ files markers line isError = case List.safeIndex (line - 1) =<< (HashMa
     goIndexed n (x : xs) = (n, x) : goIndexed (n + 1) xs
 
 -- |
-showAllMarkersInLine :: Pretty msg => Bool -> (Doc AnsiStyle -> Doc AnsiStyle) -> Bool -> Bool -> Int -> [(Position, Marker msg)] -> Doc AnsiStyle
-showAllMarkersInLine _ _ _ _ _ []                                                      = mempty
-showAllMarkersInLine hasMultilines colorMultilinePrefix withUnicode isError leftLen ms =
+showAllMarkersInLine :: Pretty msg => Bool -> Bool -> (Doc AnsiStyle -> Doc AnsiStyle) -> Bool -> Bool -> Int -> [(Position, Marker msg)] -> Doc AnsiStyle
+showAllMarkersInLine _ _ _ _ _ _ []                                                      = mempty
+showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUnicode isError leftLen ms =
   let maxMarkerColumn = snd $ end $ fst $ List.last $ List.sortOn (snd . end . fst) ms
-      specialPrefix = if hasMultilines then colorMultilinePrefix (if withUnicode then "│ " else "| ") <> space else mempty
+      specialPrefix = if inSpanOfMultiline
+                      then colorMultilinePrefix (if withUnicode then "│ " else "| ") <> space
+                      else if hasMultilines
+                      then colorMultilinePrefix "  " <> space
+                      else mempty
       -- get the maximum end column, so that we know when to stop looking for other markers on the same line
   in  hardline <+> dotPrefix leftLen withUnicode <+> (if List.null ms then mempty else specialPrefix <> showMarkers 1 maxMarkerColumn <> showMessages specialPrefix ms maxMarkerColumn)
   where

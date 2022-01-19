@@ -29,6 +29,8 @@ main = do
   let files :: HashMap FilePath String = HashMap.fromList
         [ ("test.zc", "let id<a>(x : a) : a := x + 1\nrec fix(f) := f(fix(f))\nlet const<a, b>(x : a, y : b) : a := x")
         , ("somefile.zc", "let id<a>(x : a) : a := x\n  + 1")
+        , ("err.nst",  "\n\n\n\n    = jmp g\n\n    g: forall(s: Ts, e: Tc).{ %r0: *s64 | s -> e }")
+        , ("unsized.nst", "main: forall(a: Ta, s: Ts, e: Tc).{ %r5: forall().{| s -> e } | s -> %r5 }\n    = salloc a\n    ; sfree\n")
         ]
 
   let reports =
@@ -56,6 +58,8 @@ main = do
         , errorTwoMultilineMarkersFirstMultilineMessageNoHints
         , errorThreeMultilineMarkersTwoMultilineMessageNoHints
         , errorOrderSensitive
+        , errorMultilineAfterSingleLine
+        , errorOnEmptyLine
         , beautifulExample 
         ] 
 
@@ -239,3 +243,16 @@ beautifulExample =
     , (Position (1, 11) (1, 16) "somefile.zc", Where "'x' is supposed to have type 'a'")
     , (Position (1, 8) (1, 9) "somefile.zc", Where "type 'a' is bound here without constraints") ]
     [ "Adding 'Num(a)' to the list of constraints may solve this problem." ]
+
+errorMultilineAfterSingleLine :: Report String
+errorMultilineAfterSingleLine =
+  err "Multiline after single line"
+    [ (Position (1, 17) (1, 18) "unsized.nst", Where "Kind is infered from here")
+    , (Position (2, 14) (3, 0) "unsized.nst", This "is an error") ]
+    []
+
+errorOnEmptyLine :: Report String
+errorOnEmptyLine =
+  err "Error on empty line"
+    [ (Position (2, 5) (3, 8) "err.nst", This "error on empty line") ]
+    []
