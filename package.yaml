@@ -74,6 +74,9 @@ ghc-options:
 # - -Wmissing-local-signatures
 # - -Wmonomorphism-restriction
 
+extra-source-files:
+- README.md
+
 tests:
   diagnose-rendering-tests:
     main:                Spec.hs

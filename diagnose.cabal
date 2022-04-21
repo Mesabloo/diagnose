@@ -21,6 +21,8 @@ copyright:      2021- Ghilain Bergeron
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
+extra-source-files:
+    README.md
 
 source-repository head
   type: git
