@@ -1,5 +1,5 @@
 name: diagnose
-version: 1.5.0
+version: 1.6.0
 github: "mesabloo/diagnose"
 license: BSD3
 author: "Mesabloo"
@@ -7,13 +7,13 @@ copyright: "2020 Mesabloo"
 
 dependencies:
 - base >= 4.7 && < 5
-- prettyprinter == 1.7.0
-- prettyprinter-ansi-terminal == 1.1.2
-- unordered-containers == 0.2.14.0
-- hashable == 1.3.0.0
-- data-default == 0.7.1.1
-- bytestring == 0.10.12.0
-- text == 1.2.4.1
+- prettyprinter == 1.7.*
+- prettyprinter-ansi-terminal == 1.1.*
+- unordered-containers == 0.2.*
+- hashable == 1.3.*
+- data-default == 0.7.*
+- bytestring == 0.10.*
+- text == 1.2.*
 
 default-extensions:
 - OverloadedStrings
