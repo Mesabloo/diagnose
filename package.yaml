@@ -3,7 +3,7 @@ version: 1.6.2
 github: "mesabloo/diagnose"
 license: BSD3
 author: "Mesabloo"
-copyright: "2020 Mesabloo"
+copyright: "2021- Mesabloo"
 
 dependencies:
 - base >= 4.7 && < 5
@@ -43,11 +43,11 @@ flags:
     manual: true
     default: false
   megaparsec-compat:
-    description: "Includes a small compatibility layer (in the module Error.Diagnose.Compat.Megaparsec) to transform megaparsec errors into reports for this library."
+    description: "Includes a small compatibility layer (in the module `Error.Diagnose.Compat.Megaparsec`) to transform megaparsec errors into reports for this library."
     manual: true
     default: false
   parsec-compat:
-    description: "Includes a small compatibility layer (in the module Error.Diagnose.Compat.Parsec) to transform parsec errors into reports for this library."
+    description: "Includes a small compatibility layer (in the module `Error.Diagnose.Compat.Parsec`) to transform parsec errors into reports for this library."
     manual: true
     default: false
   # do the same for other parsing libraries like parsec or attoparsec
@@ -55,14 +55,14 @@ flags:
 when:
   - condition: flag(json)
     dependencies:
-    - aeson == 1.5.6.0
+    - aeson == 1.5.*
 
     cpp-options:
     - -DUSE_AESON
   - condition: flag(megaparsec-compat)
     dependencies:
     - megaparsec >= 9.0.0
-    - containers == 0.6.2.1
+    - containers == 0.6.*
   - condition: flag(parsec-compat)
     dependencies:
     - parsec >= 3.1.14
@@ -114,3 +114,13 @@ tests:
      - condition: ! '!(flag(parsec-compat))'
        buildable: false
 
+
+# This is put at the end for convenience.
+description: |
+  # Error reporting made easy
+
+  This library provides a simple way of getting beautiful compiler/interpreter errors
+  using a very simple interface for the programmer.
+
+  A quick tutorial is available in the module `Error.Diagnose`, which goes on most of the basis
+  of how to use it.

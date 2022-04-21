@@ -6,11 +6,18 @@ cabal-version: 1.12
 
 name:           diagnose
 version:        1.6.2
+description:    # Error reporting made easy
+                .
+                This library provides a simple way of getting beautiful compiler/interpreter errors
+                using a very simple interface for the programmer.
+                .
+                A quick tutorial is available in the module `Error.Diagnose`, which goes on most of the basis
+                of how to use it.
 homepage:       https://github.com/mesabloo/diagnose#readme
 bug-reports:    https://github.com/mesabloo/diagnose/issues
 author:         Mesabloo
 maintainer:     Mesabloo
-copyright:      2020 Mesabloo
+copyright:      2021- Mesabloo
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
@@ -25,12 +32,12 @@ flag json
   default: False
 
 flag megaparsec-compat
-  description: Includes a small compatibility layer (in the module Error.Diagnose.Compat.Megaparsec) to transform megaparsec errors into reports for this library.
+  description: Includes a small compatibility layer (in the module `Error.Diagnose.Compat.Megaparsec`) to transform megaparsec errors into reports for this library.
   manual: True
   default: False
 
 flag parsec-compat
-  description: Includes a small compatibility layer (in the module Error.Diagnose.Compat.Parsec) to transform parsec errors into reports for this library.
+  description: Includes a small compatibility layer (in the module `Error.Diagnose.Compat.Parsec`) to transform parsec errors into reports for this library.
   manual: True
   default: False
 
@@ -66,10 +73,10 @@ library
   if flag(json)
     cpp-options: -DUSE_AESON
     build-depends:
-        aeson ==1.5.6.0
+        aeson ==1.5.*
   if flag(megaparsec-compat)
     build-depends:
-        containers ==0.6.2.1
+        containers ==0.6.*
       , megaparsec >=9.0.0
   if flag(parsec-compat)
     build-depends:
@@ -107,10 +114,10 @@ test-suite diagnose-megaparsec-tests
   if flag(json)
     cpp-options: -DUSE_AESON
     build-depends:
-        aeson ==1.5.6.0
+        aeson ==1.5.*
   if flag(megaparsec-compat)
     build-depends:
-        containers ==0.6.2.1
+        containers ==0.6.*
       , megaparsec >=9.0.0
   if flag(parsec-compat)
     build-depends:
@@ -144,10 +151,10 @@ test-suite diagnose-parsec-tests
   if flag(json)
     cpp-options: -DUSE_AESON
     build-depends:
-        aeson ==1.5.6.0
+        aeson ==1.5.*
   if flag(megaparsec-compat)
     build-depends:
-        containers ==0.6.2.1
+        containers ==0.6.*
       , megaparsec >=9.0.0
   if flag(parsec-compat)
     build-depends:
@@ -181,10 +188,10 @@ test-suite diagnose-rendering-tests
   if flag(json)
     cpp-options: -DUSE_AESON
     build-depends:
-        aeson ==1.5.6.0
+        aeson ==1.5.*
   if flag(megaparsec-compat)
     build-depends:
-        containers ==0.6.2.1
+        containers ==0.6.*
       , megaparsec >=9.0.0
   if flag(parsec-compat)
     build-depends:
