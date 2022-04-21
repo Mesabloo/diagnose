@@ -5,19 +5,19 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           diagnose
-version:        1.6.2
-description:    # Error reporting made easy
-                .
-                This library provides a simple way of getting beautiful compiler/interpreter errors
+version:        1.6.3
+synopsis:       Beautiful error reporting done easily.
+description:    This package provides a simple way of getting beautiful compiler/interpreter errors
                 using a very simple interface for the programmer.
                 .
-                A quick tutorial is available in the module `Error.Diagnose`, which goes on most of the basis
+                A quick tutorial is available in the module "Error.Diagnose", which goes on most of the basis
                 of how to use it.
+category:       Error Reporting
 homepage:       https://github.com/mesabloo/diagnose#readme
 bug-reports:    https://github.com/mesabloo/diagnose/issues
-author:         Mesabloo
-maintainer:     Mesabloo
-copyright:      2021- Mesabloo
+author:         Ghilain Bergeron
+maintainer:     Ghilain Bergeron
+copyright:      2021- Ghilain Bergeron
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
@@ -100,7 +100,7 @@ test-suite diagnose-megaparsec-tests
       OverloadedStrings
       LambdaCase
       BlockArguments
-  ghc-options: -Wall -Wextra -threaded -rtsopts -with-rtsopts=-N -O0 -g
+  ghc-options: -Wall -Wextra -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
     , bytestring ==0.10.*
@@ -137,7 +137,7 @@ test-suite diagnose-parsec-tests
       OverloadedStrings
       LambdaCase
       BlockArguments
-  ghc-options: -Wall -Wextra -threaded -rtsopts -with-rtsopts=-N -O0 -g
+  ghc-options: -Wall -Wextra -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
     , bytestring ==0.10.*
@@ -174,7 +174,7 @@ test-suite diagnose-rendering-tests
       OverloadedStrings
       LambdaCase
       BlockArguments
-  ghc-options: -Wall -Wextra -threaded -rtsopts -with-rtsopts=-N -O0 -g
+  ghc-options: -Wall -Wextra -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
     , bytestring ==0.10.*

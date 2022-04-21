@@ -2,8 +2,9 @@ name: diagnose
 version: 1.6.3
 github: "mesabloo/diagnose"
 license: BSD3
-author: "Mesabloo"
-copyright: "2021- Mesabloo"
+author: "Ghilain Bergeron"
+copyright: "2021- Ghilain Bergeron"
+category: "Error Reporting"
 
 dependencies:
 - base >= 4.7 && < 5
@@ -81,8 +82,6 @@ tests:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
-    - -O0
-    - -g
     dependencies:
     - diagnose
   diagnose-megaparsec-tests:
@@ -92,8 +91,6 @@ tests:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
-    - -O0
-    - -g
     dependencies:
     - diagnose
     when:
@@ -106,8 +103,6 @@ tests:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
-    - -O0
-    - -g
     dependencies:
     - diagnose
     when:
@@ -116,11 +111,11 @@ tests:
 
 
 # This is put at the end for convenience.
+synopsis: Beautiful error reporting done easily.
+ 
 description: |
-  # Error reporting made easy
-
-  This library provides a simple way of getting beautiful compiler/interpreter errors
+  This package provides a simple way of getting beautiful compiler/interpreter errors
   using a very simple interface for the programmer.
 
-  A quick tutorial is available in the module `Error.Diagnose`, which goes on most of the basis
+  A quick tutorial is available in the module "Error.Diagnose", which goes on most of the basis
   of how to use it.
