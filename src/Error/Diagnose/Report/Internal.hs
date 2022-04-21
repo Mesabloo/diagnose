@@ -159,7 +159,11 @@ prettyReport fileContent withUnicode (Report isError message markers hints) =
 
       {- (1) -} header <> colon <+> align (pretty message)
         <> {- (2), (3), (4) -} fold (uncurry (prettySubReport fileContent withUnicode isError maxLineNumberLength) <$> groupedMarkers)
-        <> {- (5) -} (if null hints || null markers then mempty else hardline <+> dotPrefix maxLineNumberLength withUnicode)
+        <> {- (5) -} ( if
+                           | null hints && null markers -> mempty
+                           | null hints -> mempty
+                           | otherwise -> hardline <+> dotPrefix maxLineNumberLength withUnicode
+                     )
         <> prettyAllHints hints maxLineNumberLength withUnicode
         <> hardline
         <> {- (6) -} ( if null markers && null hints
