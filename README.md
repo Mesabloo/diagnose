@@ -75,6 +75,29 @@ You will also need to put your files into the diagnostic with `addFile`, else li
 After all of this is done, you may choose to either print the diagnostic onto a handle using `printDiagnostic`
 or export it to JSON with `diagnosticToJson` or the `ToJSON` class of Aeson (the output format is documented under the `diagnosticToJson` function).
 
+## Example
+
+Here is how the above screenshot was generated:
+```haskell
+let beautifulExample =
+      err
+        "Could not deduce constraint 'Num(a)' from the current context"
+        [ (Position (1, 25) (2, 6) "somefile.zc", This "While applying function '+'"),
+          (Position (1, 11) (1, 16) "somefile.zc", Where "'x' is supposed to have type 'a'"),
+          (Position (1, 8) (1, 9) "somefile.zc", Where "type 'a' is bound here without constraints")
+        ]
+        ["Adding 'Num(a)' to the list of constraints may solve this problem."]
+
+-- Create the diagnostic 
+let diagnostic  = addFile def "somefile.zc" "let id<a>(x : a) : a := x\n  + 1"
+let diagnostic' = addReport diagnostic beautifulExample
+
+-- Print with unicode characters and colors
+printDiagnostic stdout True True diag
+```
+
+More examples are given in the [`test/rendering`](./test/rendering) folder.
+
 ## License
 
 This work is licensed under the BSD-3 clause license.
