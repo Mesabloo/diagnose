@@ -162,8 +162,12 @@ prettyReport fileContent withUnicode (Report isError message markers hints) =
         <> {- (5) -} (if null hints || null markers then mempty else hardline <+> dotPrefix maxLineNumberLength withUnicode)
         <> prettyAllHints hints maxLineNumberLength withUnicode
         <> hardline
-        <> {- (6) -} annotate (bold <> color Black) (pad (maxLineNumberLength + 2) (if withUnicode then '─' else '-') mempty <> if withUnicode then "╯" else "+")
-        <> hardline
+        <> {- (6) -} ( if null markers && null hints
+                         then mempty
+                         else
+                           annotate (bold <> color Black) (pad (maxLineNumberLength + 2) (if withUnicode then '─' else '-') mempty <> if withUnicode then "╯" else "+")
+                             <> hardline
+                     )
 
 -------------------------------------------------------------------------------------
 ----- INTERNAL STUFF ----------------------------------------------------------------
