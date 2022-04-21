@@ -93,7 +93,7 @@ let diagnostic  = addFile def "somefile.zc" "let id<a>(x : a) : a := x\n  + 1"
 let diagnostic' = addReport diagnostic beautifulExample
 
 -- Print with unicode characters and colors
-printDiagnostic stdout True True diag
+printDiagnostic stdout True True diagnostic'
 ```
 
 More examples are given in the [`test/rendering`](./test/rendering) folder.
