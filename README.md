@@ -98,6 +98,13 @@ printDiagnostic stdout True True diagnostic'
 
 More examples are given in the [`test/rendering`](./test/rendering) folder.
 
+## TODO list
+
+- Handle variable-width characters such as tabs or some unicode characters
+
+  For tabs, we may just resort to having the user fix a given number of
+  spaces in the `printDiagnostic` function.
+
 ## License
 
 This work is licensed under the BSD-3 clause license.
