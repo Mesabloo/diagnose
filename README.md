@@ -24,6 +24,7 @@ Colors are also optional, and you may choose not to print them.
 - Generic over the type of message which can be displayed, meaning that you can output custom data types as well as they can be pretty-printed
 - Diagnostics can be exported to JSON, if you don't quite like the rendering as it is, or if you need to transmit them to e.g. a website
 - Plug and play (mega)parsec integration and it magically works with your parsers!
+- Support for optional custom error codes, if you want to go the Rust way
 
 ## Usage
 
@@ -44,14 +45,16 @@ There are two kinds of reports:
 
 Both of these fonctions have the following type:
 ```haskell
-  -- | The main message, which is output at the top right after `[error]` or `[warning]`
-  msg ->
-  -- | A list of markers, along with the positions they span on
-  [(Position, Marker msg)] ->
-  -- | Some hints to be output at the bottom of the report
-  [msg] ->
-  -- | The created report
-  Report msg
+-- | An optional error code, shown right after @error@ or @warning@ in the square brackets
+Maybe msg ->
+-- | The main message, which is output at the top right after @[error]@ or @[warning]@
+msg ->
+-- | A list of markers, along with the positions they span on
+[(Position, Marker msg)] ->
+-- | Some hints to be output at the bottom of the report
+[msg] ->
+-- | The created report
+Report msg
 ```
 
 Each report contains markers, which are what underlines the code in the screenshots above.
@@ -81,6 +84,7 @@ Here is how the above screenshot was generated:
 ```haskell
 let beautifulExample =
       err
+        Nothing
         "Could not deduce constraint 'Num(a)' from the current context"
         [ (Position (1, 25) (2, 6) "somefile.zc", This "While applying function '+'"),
           (Position (1, 11) (1, 16) "somefile.zc", Where "'x' is supposed to have type 'a'"),
@@ -104,9 +108,6 @@ More examples are given in the [`test/rendering`](./test/rendering) folder.
 
   For tabs, we may just resort to having the user fix a given number of
   spaces in the `printDiagnostic` function.
-- Modern compilers also emit error codes, which is very handy when it comes documentation.
-
-  We need to support this (optionally) as an additional argument to a `Report`.
 
 ## License
 

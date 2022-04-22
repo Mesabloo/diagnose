@@ -126,7 +126,8 @@ addReport (Diagnostic reports files) report =
 --   >     }[]
 --   > , reports:
 --   >     { kind: 'error' | 'warning'
---   >     , message: string
+--   >     , code: T?
+--   >     , message: T
 --   >     , markers:
 --   >         { kind: 'this' | 'where' | 'maybe'
 --   >         , position:
@@ -134,11 +135,13 @@ addReport (Diagnostic reports files) report =
 --   >             , end: { line: int, column: int }
 --   >             , file: string
 --   >             }
---   >         , message: string
+--   >         , message: T
 --   >         }[]
---   >     , hints: string[]
+--   >     , hints: T[]
 --   >     }[]
 --   > }
+--
+--   where @T@ is the type of the JSON representation for the @msg@ type variable.
 diagnosticToJson :: ToJSON msg => Diagnostic msg -> ByteString
 diagnosticToJson = encode
 #endif

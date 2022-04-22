@@ -24,7 +24,6 @@ module Error.Diagnose.Compat.Megaparsec
 where
 
 import Data.Bifunctor (second)
-import Data.Function ((&))
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set (toList)
 import Data.String (IsString (..))
@@ -38,6 +37,8 @@ diagnosticFromBundle ::
   (IsString msg, MP.Stream s, HasHints e msg, MP.ShowErrorComponent e, MP.VisualStream s, MP.TraversableStream s) =>
   -- | How to decide whether this is an error or a warning diagnostic
   (MP.ParseError s e -> Bool) ->
+  -- | An optional error code
+  Maybe msg ->
   -- | The error message of the diagnostic
   msg ->
   -- | Default hints when trivial errors are reported
@@ -45,7 +46,7 @@ diagnosticFromBundle ::
   -- | The bundle to create a diagnostic from
   MP.ParseErrorBundle s e ->
   Diagnostic msg
-diagnosticFromBundle isError msg (fromMaybe [] -> trivialHints) MP.ParseErrorBundle {..} =
+diagnosticFromBundle isError code msg (fromMaybe [] -> trivialHints) MP.ParseErrorBundle {..} =
   foldl addReport def (toLabeledPosition <$> bundleErrors)
   where
     toLabeledPosition :: MP.ParseError s e -> Report msg
@@ -54,7 +55,7 @@ diagnosticFromBundle isError msg (fromMaybe [] -> trivialHints) MP.ParseErrorBun
           source = fromSourcePos (MP.pstateSourcePos pos)
           msgs = fromString @msg <$> lines (MP.parseErrorTextPretty error)
        in flip
-            (msg & if isError error then err else warn)
+            (if isError error then err code msg else warn code msg)
             (errorHints error)
             if
                 | [m] <- msgs -> [(source, This m)]
@@ -78,6 +79,8 @@ diagnosticFromBundle isError msg (fromMaybe [] -> trivialHints) MP.ParseErrorBun
 errorDiagnosticFromBundle ::
   forall msg s e.
   (IsString msg, MP.Stream s, HasHints e msg, MP.ShowErrorComponent e, MP.VisualStream s, MP.TraversableStream s) =>
+  -- | An optional error code
+  Maybe msg ->
   -- | The error message of the diagnostic
   msg ->
   -- | Default hints when trivial errors are reported
@@ -91,6 +94,8 @@ errorDiagnosticFromBundle = diagnosticFromBundle (const True)
 warningDiagnosticFromBundle ::
   forall msg s e.
   (IsString msg, MP.Stream s, HasHints e msg, MP.ShowErrorComponent e, MP.VisualStream s, MP.TraversableStream s) =>
+  -- | An optional error code
+  Maybe msg ->
   -- | The error message of the diagnostic
   msg ->
   -- | Default hints when trivial errors are reported

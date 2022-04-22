@@ -25,6 +25,7 @@ module Error.Diagnose.Report.Internal where
 #ifdef USE_AESON
 import Data.Aeson (ToJSON(..), object, (.=))
 #endif
+import Control.Applicative ((<|>))
 import Data.Bifunctor (bimap, first, second)
 import Data.Default (def)
 import Data.Foldable (fold)
@@ -36,7 +37,7 @@ import qualified Data.List as List
 import qualified Data.List.Safe as List
 import Data.Ord (Down (..))
 import Error.Diagnose.Position
-import Prettyprinter (Doc, Pretty (..), align, annotate, colon, hardline, space, width, (<+>))
+import Prettyprinter (Doc, Pretty (..), align, annotate, colon, hardline, lbracket, rbracket, space, width, (<+>))
 import Prettyprinter.Internal (Doc (..))
 import Prettyprinter.Render.Terminal (AnsiStyle, Color (..), bold, color, colorDull)
 
@@ -45,6 +46,8 @@ data Report msg
   = Report
       Bool
       -- ^ Is the report a warning or an error?
+      (Maybe msg)
+      -- ^ An optional error code to print at the top.
       msg
       -- ^ The message associated with the error.
       [(Position, Marker msg)]
@@ -53,16 +56,17 @@ data Report msg
       -- ^ A list of hints to add at the end of the report.
 
 instance Semigroup msg => Semigroup (Report msg) where
-  Report isError1 msg1 pos1 hints1 <> Report isError2 msg2 pos2 hints2 =
-    Report (isError1 || isError2) (msg1 <> msg2) (pos1 <> pos2) (hints1 <> hints2)
+  Report isError1 code1 msg1 pos1 hints1 <> Report isError2 code2 msg2 pos2 hints2 =
+    Report (isError1 || isError2) (code1 <|> code2) (msg1 <> msg2) (pos1 <> pos2) (hints1 <> hints2)
 
 instance Monoid msg => Monoid (Report msg) where
-  mempty = Report False mempty mempty mempty
+  mempty = Report False Nothing mempty mempty mempty
 
 #ifdef USE_AESON
 instance ToJSON msg => ToJSON (Report msg) where
-  toJSON (Report isError msg markers hints) =
+  toJSON (Report isError code msg markers hints) =
     object [ "kind" .= (if isError then "error" else "warning" :: String)
+           , "code" .= code
            , "message" .= msg
            , "markers" .= fmap showMarker markers
            , "hints" .= hints
@@ -111,6 +115,8 @@ instance Ord (Marker msg) where
 -- | Constructs a warning or an error report.
 warn,
   err ::
+    -- | An optional error code to be shown right next to "error" or "warning".
+    Maybe msg ->
     -- | The report message, shown at the very top.
     msg ->
     -- | A list associating positions with markers.
@@ -133,7 +139,7 @@ prettyReport ::
   -- | The whole report to output
   Report msg ->
   Doc AnsiStyle
-prettyReport fileContent withUnicode (Report isError message markers hints) =
+prettyReport fileContent withUnicode (Report isError code message markers hints) =
   let sortedMarkers = List.sortOn (fst . begin . fst) markers
       -- sort the markers so that the first lines of the reports are the first lines of the file
 
@@ -143,7 +149,17 @@ prettyReport fileContent withUnicode (Report isError message markers hints) =
       maxLineNumberLength = maybe 3 (max 3 . length . show . fst . end . fst) $ List.safeLast markers
       -- if there are no markers, then default to 3, else get the maximum between 3 and the length of the last marker
 
-      header = annotate bold if isError then annotate (color Red) "[error]" else annotate (color Yellow) "[warning]"
+      header =
+        annotate (bold <> color if isError then Red else Yellow) $
+          ( lbracket
+              <> ( if isError
+                     then "error"
+                     else "warning"
+                 )
+              <> case code of
+                Nothing -> rbracket
+                Just code -> space <> pretty code <> rbracket
+          )
    in {-
               A report is of the form:
               (1)    [error|warning]: <message>

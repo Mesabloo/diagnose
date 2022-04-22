@@ -20,7 +20,6 @@ module Error.Diagnose.Compat.Parsec
 where
 
 import Data.Bifunctor (second)
-import Data.Function ((&))
 import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
 import Data.String (IsString (..))
@@ -36,6 +35,8 @@ diagnosticFromParseError ::
   (IsString msg, HasHints Void msg) =>
   -- | Determine whether the diagnostic is an error or a warning
   (PE.ParseError -> Bool) ->
+  -- | An optional error code
+  Maybe msg ->
   -- | The main error of the diagnostic
   msg ->
   -- | Default hints
@@ -43,10 +44,10 @@ diagnosticFromParseError ::
   -- | The 'PE.ParseError' to transform into a 'Diagnostic'
   PE.ParseError ->
   Diagnostic msg
-diagnosticFromParseError isError msg (fromMaybe [] -> defaultHints) error =
+diagnosticFromParseError isError code msg (fromMaybe [] -> defaultHints) error =
   let pos = fromSourcePos $ PE.errorPos error
       markers = toMarkers pos $ PE.errorMessages error
-      report = (msg & if isError error then err else warn) markers (defaultHints <> hints (undefined :: Void))
+      report = (if isError error then err code msg else warn code msg) markers (defaultHints <> hints (undefined :: Void))
    in addReport def report
   where
     fromSourcePos :: PP.SourcePos -> Position
@@ -75,6 +76,8 @@ diagnosticFromParseError isError msg (fromMaybe [] -> defaultHints) error =
 errorDiagnosticFromParseError ::
   forall msg.
   (IsString msg, HasHints Void msg) =>
+  -- | An optional error code
+  Maybe msg ->
   -- | The main error message of the diagnostic
   msg ->
   -- | Default hints
@@ -88,6 +91,8 @@ errorDiagnosticFromParseError = diagnosticFromParseError (const True)
 warningDiagnosticFromParseError ::
   forall msg.
   (IsString msg, HasHints Void msg) =>
+  -- | An optional error code
+  Maybe msg ->
   -- | The main error message of the diagnostic
   msg ->
   -- | Default hints
