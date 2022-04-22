@@ -133,7 +133,7 @@ import Error.Diagnose.Report as Export
 --         Here are two examples of the same diagnostic, the first output with unicode characters, and the second output with ASCII characters:
 --
 --         > [error]: Error with one marker in bounds
---         >      ╭─▶ test.zc@1:25-1:30
+--         >      ╭──▶ test.zc@1:25-1:30
 --         >      │
 --         >    1 │ let id<a>(x : a) : a := x + 1
 --         >      •                         ┬────
@@ -141,7 +141,7 @@ import Error.Diagnose.Report as Export
 --         > ─────╯
 --
 --         > [error]: Error with one marker in bounds
---         >      +-> test.zc@1:25-1:30
+--         >      +--> test.zc@1:25-1:30
 --         >      |
 --         >    1 | let id<a>(x : a) : a := x + 1
 --         >      :                         ^----
@@ -214,7 +214,7 @@ import Error.Diagnose.Report as Export
 --   >
 --   > case res of
 --   >   Left bundle ->
---   >     let diag  = errorDiagnosticFromBundle "Parse error on input" Nothing bundle
+--   >     let diag  = errorDiagnosticFromBundle Nothing "Parse error on input" Nothing bundle
 --   >            --   Creates a new diagnostic with no default hints from the bundle returned by megaparsec
 --   >         diag' = addFile diag filename content
 --   >            --   Add the file used when parsing with the same filename given to 'MP.runParser'
@@ -224,7 +224,7 @@ import Error.Diagnose.Report as Export
 --   This example will return the following error message (assuming default instances for @'Error.Diagnose.Compat.Megaparsec.HasHints' 'Data.Void.Void' msg@):
 --
 --   > [error]: Parse error on input
---   >      ╭─▶ <interactive>@1:6-1:7
+--   >      ╭──▶ <interactive>@1:6-1:7
 --   >      │
 --   >    1 │ 00000a2223266
 --   >      •      ┬
@@ -255,7 +255,7 @@ import Error.Diagnose.Report as Export
 --   >
 --   > case res of
 --   >   Left error ->
---   >     let diag  = errorDiagnosticFromParseError "Parse error on input" Nothing error
+--   >     let diag  = errorDiagnosticFromParseError Nothing "Parse error on input" Nothing error
 --   >            --   Creates a new diagnostic with no default hints from the bundle returned by megaparsec
 --   >         diag' = addFile diag filename content
 --   >            --   Add the file used when parsing with the same filename given to 'MP.runParser'
@@ -265,7 +265,7 @@ import Error.Diagnose.Report as Export
 --   This will output the following errr on @stderr@:
 --
 --   > [error]: Parse error on input
---   >      ╭─▶ <interactive>@1:6-1:7
+--   >      ╭──▶ <interactive>@1:6-1:7
 --   >      │
 --   >    1 │ 00000a2223266
 --   >      •      ┬
