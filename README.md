@@ -100,10 +100,13 @@ More examples are given in the [`test/rendering`](./test/rendering) folder.
 
 ## TODO list
 
-- Handle variable-width characters such as tabs or some unicode characters
+- Handle variable-width characters such as tabs or some unicode characters.
 
   For tabs, we may just resort to having the user fix a given number of
   spaces in the `printDiagnostic` function.
+- Modern compilers also emit error codes, which is very handy when it comes documentation.
+
+  We need to support this (optionally) as an additional argument to a `Report`.
 
 ## License
 
