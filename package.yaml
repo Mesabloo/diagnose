@@ -1,5 +1,5 @@
 name: diagnose
-version: 1.6.3
+version: 1.6.4
 github: "mesabloo/diagnose"
 license: BSD3
 author: "Ghilain Bergeron"
@@ -114,7 +114,7 @@ tests:
 
 
 # This is put at the end for convenience.
-synopsis: Beautiful error reporting done easily.
+synopsis: Beautiful error reporting done easily
  
 description: |
   This package provides a simple way of getting beautiful compiler/interpreter errors

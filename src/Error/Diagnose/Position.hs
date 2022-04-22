@@ -31,6 +31,9 @@ import Prettyprinter (Pretty (..), colon)
 --   > data Located a
 --   >   = a :@ Position
 --   >   deriving (Show, Eq, Ord, Functor, Traversable)
+--
+--   Columns are specified in amount of Unicode codepoints from the beginning of the line.
+--   Lines and columns start at 1.
 data Position = Position
   { -- | The beginning line and column of the span.
     begin :: (Int, Int),
