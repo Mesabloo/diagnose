@@ -70,7 +70,7 @@ diagnosticFromParseError isError code msg (fromMaybe [] -> defaultHints) error =
           ]
             <> [ (source, marker) | msg <- messages, let marker = This $ fromString msg
                ]
-            <> [(source, Where $ fromString $ "expecting any of " <> intercalate ", " expectedList)]
+            <> [(source, Where $ fromString $ "expecting any of " <> intercalate ", " (filter (not . null) expectedList))]
 
 -- | Generates an error diagnostic from a 'PE.ParseError'.
 errorDiagnosticFromParseError ::
