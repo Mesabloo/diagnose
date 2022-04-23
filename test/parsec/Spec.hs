@@ -13,10 +13,12 @@ import qualified Data.Text as Text (unpack)
 import Data.Void (Void)
 import Error.Diagnose
 import Error.Diagnose.Compat.Parsec
+--
+import qualified Repro2 as Issue2
+--
 import qualified Text.Parsec as P
 
-instance HasHints Void msg where
-  hints _ = mempty
+instance HasHints Void Text where hints _ = mempty
 
 main :: IO ()
 main = do
@@ -33,3 +35,6 @@ main = do
   case res2 of
     Left diag -> printDiagnostic stdout True True (addFile diag filename (Text.unpack content2) :: Diagnostic String)
     Right res -> print res
+
+  -- all issue reproduction
+  Issue2.main

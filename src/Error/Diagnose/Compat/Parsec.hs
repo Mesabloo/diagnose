@@ -20,7 +20,7 @@ module Error.Diagnose.Compat.Parsec
 where
 
 import Data.Bifunctor (second)
-import Data.List (intercalate)
+import Data.List (intercalate, nub)
 import Data.Maybe (fromMaybe)
 import Data.String (IsString (..))
 import Data.Void (Void)
@@ -65,7 +65,7 @@ diagnosticFromParseError isError code msg (fromMaybe [] -> defaultHints) error =
           putTogether (PE.Expect thing : ms) = let (a, b, c, d) = putTogether ms in (a, b, thing : c, d)
           putTogether (PE.Message thing : ms) = let (a, b, c, d) = putTogether ms in (a, b, c, thing : d)
 
-          (sysUnexpectedList, unexpectedList, expectedList, messages) = putTogether msgs
+          (nub -> sysUnexpectedList, nub -> unexpectedList, nub -> expectedList, nub -> messages) = putTogether msgs
        in [ (source, marker) | unexpected <- if null unexpectedList then sysUnexpectedList else unexpectedList, let marker = This $ fromString $ "unexpected " <> unexpected
           ]
             <> [ (source, marker) | msg <- messages, let marker = This $ fromString msg

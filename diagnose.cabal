@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           diagnose
-version:        1.7.1
+version:        1.7.2
 synopsis:       Beautiful error reporting done easily
 description:    This package provides a simple way of getting beautiful compiler/interpreter errors
                 using a very simple interface for the programmer.
@@ -132,6 +132,7 @@ test-suite diagnose-parsec-tests
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Repro2
       Paths_diagnose
   hs-source-dirs:
       test/parsec
