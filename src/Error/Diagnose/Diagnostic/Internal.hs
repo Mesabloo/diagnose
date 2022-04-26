@@ -69,11 +69,13 @@ prettyDiagnostic ::
   Pretty msg =>
   -- | Should we use unicode when printing paths?
   Bool ->
+  -- | The number of spaces each TAB character will span
+  Int ->
   -- | The diagnostic to print
   Diagnostic msg ->
   Doc AnsiStyle
-prettyDiagnostic withUnicode (Diagnostic reports file) =
-  fold . intersperse hardline $ prettyReport file withUnicode <$> reports
+prettyDiagnostic withUnicode tabSize (Diagnostic reports file) =
+  fold . intersperse hardline $ prettyReport file withUnicode tabSize <$> reports
 {-# INLINE prettyDiagnostic #-}
 
 -- | Prints a 'Diagnostic' onto a specific 'Handle'.
@@ -85,11 +87,13 @@ printDiagnostic ::
   Bool ->
   -- | 'False' to disable colors.
   Bool ->
+  -- | The number of spaces each TAB character will span
+  Int ->
   -- | The diagnostic to output.
   Diagnostic msg ->
   m ()
-printDiagnostic handle withUnicode withColors diag =
-  liftIO $ hPutDoc handle (unlessId withColors unAnnotate $ prettyDiagnostic withUnicode diag)
+printDiagnostic handle withUnicode withColors tabSize diag =
+  liftIO $ hPutDoc handle (unlessId withColors unAnnotate $ prettyDiagnostic withUnicode tabSize diag)
   where
     unlessId cond app = if cond then id else app
     {-# INLINE unlessId #-}

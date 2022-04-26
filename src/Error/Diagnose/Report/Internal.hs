@@ -4,9 +4,9 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-
 {-# OPTIONS -Wno-name-shadowing #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeApplications #-}
 
 -- |
 -- Module      : Error.Diagnose.Report.Internal
@@ -22,9 +22,6 @@
 --            Please limit yourself to the "Error.Diagnose.Report" module, which exports some of the useful functions defined here.
 module Error.Diagnose.Report.Internal where
 
-#ifdef USE_AESON
-import Data.Aeson (ToJSON(..), object, (.=))
-#endif
 import Control.Applicative ((<|>))
 import Data.Bifunctor (bimap, first, second)
 import Data.Default (def)
@@ -61,30 +58,6 @@ instance Semigroup msg => Semigroup (Report msg) where
 
 instance Monoid msg => Monoid (Report msg) where
   mempty = Report False Nothing mempty mempty mempty
-
-#ifdef USE_AESON
-instance ToJSON msg => ToJSON (Report msg) where
-  toJSON (Report isError code msg markers hints) =
-    object [ "kind" .= (if isError then "error" else "warning" :: String)
-           , "code" .= code
-           , "message" .= msg
-           , "markers" .= fmap showMarker markers
-           , "hints" .= hints
-           ]
-    where
-      showMarker (pos, marker) =
-        object $ [ "position" .= pos ]
-              <> case marker of
-                   This m  -> [ "message" .= m
-                              , "kind" .= ("this" :: String)
-                              ]
-                   Where m -> [ "message" .= m
-                              , "kind" .= ("where" :: String)
-                              ]
-                   Maybe m -> [ "message" .= m
-                              , "kind" .= ("maybe" :: String)
-                              ]
-#endif
 
 -- | The type of markers with abstract message type, shown under code lines.
 data Marker msg
@@ -136,10 +109,12 @@ prettyReport ::
   HashMap FilePath [String] ->
   -- | Should we print paths in unicode?
   Bool ->
+  -- | The number of spaces each TAB character will span
+  Int ->
   -- | The whole report to output
   Report msg ->
   Doc AnsiStyle
-prettyReport fileContent withUnicode (Report isError code message markers hints) =
+prettyReport fileContent withUnicode tabSize (Report isError code message markers hints) =
   let sortedMarkers = List.sortOn (fst . begin . fst) markers
       -- sort the markers so that the first lines of the reports are the first lines of the file
 
@@ -150,7 +125,8 @@ prettyReport fileContent withUnicode (Report isError code message markers hints)
       -- if there are no markers, then default to 3, else get the maximum between 3 and the length of the last marker
 
       header =
-        annotate (bold <> color if isError then Red else Yellow) $
+        annotate
+          (bold <> color if isError then Red else Yellow)
           ( lbracket
               <> ( if isError
                      then "error"
@@ -163,7 +139,7 @@ prettyReport fileContent withUnicode (Report isError code message markers hints)
    in {-
               A report is of the form:
               (1)    [error|warning]: <message>
-              (2)           +-> <file>
+              (2)           +--> <file>
               (3)           :
               (4)    <line> | <line of code>
                             : <marker lines>
@@ -174,7 +150,7 @@ prettyReport fileContent withUnicode (Report isError code message markers hints)
       -}
 
       {- (1) -} header <> colon <+> align (pretty message)
-        <> {- (2), (3), (4) -} fold (uncurry (prettySubReport fileContent withUnicode isError maxLineNumberLength) <$> groupedMarkers)
+        <> {- (2), (3), (4) -} fold (uncurry (prettySubReport fileContent withUnicode isError tabSize maxLineNumberLength) <$> groupedMarkers)
         <> {- (5) -} ( if
                            | null hints && null markers -> mempty
                            | null hints -> mempty
@@ -280,6 +256,8 @@ prettySubReport ::
   Bool ->
   -- | Is the current report an error report?
   Bool ->
+  -- | The number of spaces each TAB character will span
+  Int ->
   -- | The size of the biggest line number
   Int ->
   -- | Is this sub-report the first one in the list?
@@ -287,7 +265,7 @@ prettySubReport ::
   -- | The list of line-ordered markers appearing in a single file
   [(Position, Marker msg)] ->
   Doc AnsiStyle
-prettySubReport fileContent withUnicode isError maxLineNumberLength isFirst markers =
+prettySubReport fileContent withUnicode isError tabSize maxLineNumberLength isFirst markers =
   let (markersPerLine, multilineMarkers) = splitMarkersPerLine markers
       -- split the list on whether markers are multiline or not
 
@@ -312,7 +290,7 @@ prettySubReport fileContent withUnicode isError maxLineNumberLength isFirst mark
    in {- (2) -} hardline <> fileMarker
         <> hardline
           <+> {- (3) -} pipePrefix maxLineNumberLength withUnicode
-        <> {- (4) -} prettyAllLines fileContent withUnicode isError maxLineNumberLength sortedMarkersPerLine multilineMarkers allLineNumbers
+        <> {- (4) -} prettyAllLines fileContent withUnicode isError tabSize maxLineNumberLength sortedMarkersPerLine multilineMarkers allLineNumbers
 
 isThisMarker :: Marker msg -> Bool
 isThisMarker (This _) = True
@@ -333,13 +311,15 @@ prettyAllLines ::
   HashMap FilePath [String] ->
   Bool ->
   Bool ->
+  -- | The number of spaces each TAB character will span
+  Int ->
   Int ->
   [(Int, [(Position, Marker msg)])] ->
   [(Position, Marker msg)] ->
   [Int] ->
   Doc AnsiStyle
-prettyAllLines _ _ _ _ _ [] [] = mempty
-prettyAllLines _ withUnicode isError leftLen _ multiline [] =
+prettyAllLines _ _ _ _ _ _ [] [] = mempty
+prettyAllLines _ withUnicode isError _ leftLen _ multiline [] =
   let colorOfLastMultilineMarker = maybe mempty (markerColor isError . snd) (List.safeLast multiline)
       -- take the color of the last multiline marker in case we need to add additional bars
 
@@ -358,7 +338,7 @@ prettyAllLines _ withUnicode isError leftLen _ multiline [] =
       showMultilineMarkerMessages [m] = [showMultilineMarkerMessage m True]
       showMultilineMarkerMessages (m : ms) = showMultilineMarkerMessage m False : showMultilineMarkerMessages ms
    in prefixWithBar colorOfLastMultilineMarker <> prefix <> fold (List.intersperse prefix $ showMultilineMarkerMessages $ reverse multiline)
-prettyAllLines files withUnicode isError leftLen inline multiline (line : ls) =
+prettyAllLines files withUnicode isError tabSize leftLen inline multiline (line : ls) =
   {-
       A line of code is composed of:
       (1)     <line> | <source code>
@@ -399,47 +379,50 @@ prettyAllLines files withUnicode isError leftLen inline multiline (line : ls) =
                 <> space
 
       allMarkersInLine = {- List.sortOn fst $ -} allInlineMarkersInLine <> allMultilineMarkersInLine
+
+      (tabs, renderedCode) = getLine_ files (allMarkersInLine <> allMultilineMarkersSpanningLine) line tabSize isError
    in hardline
         <> {- (1) -} linePrefix leftLen line withUnicode <+> additionalPrefix
-        <> getLine_ files (allMarkersInLine <> allMultilineMarkersSpanningLine) line isError
-        <> {- (2) -} showAllMarkersInLine (not $ null multiline) inSpanOfMultiline colorOfFirstMultilineMarker withUnicode isError leftLen allInlineMarkersInLine
-        <> {- (3) -} prettyAllLines files withUnicode isError leftLen inline multiline ls
+        <> renderedCode
+        <> {- (2) -} showAllMarkersInLine (not $ null multiline) inSpanOfMultiline colorOfFirstMultilineMarker withUnicode isError leftLen tabSize tabs allInlineMarkersInLine
+        <> {- (3) -} prettyAllLines files withUnicode isError tabSize leftLen inline multiline ls
 
 -- |
-getLine_ :: HashMap FilePath [String] -> [(Position, Marker msg)] -> Int -> Bool -> Doc AnsiStyle
-getLine_ files markers line isError = case List.safeIndex (line - 1) =<< (HashMap.!?) files . file . fst =<< List.safeHead markers of
-  Nothing -> annotate (bold <> colorDull Magenta) "<no line>"
+getLine_ :: HashMap FilePath [String] -> [(Position, Marker msg)] -> Int -> Int -> Bool -> ([Int], Doc AnsiStyle)
+getLine_ files markers line tabSize isError = case List.safeIndex (line - 1) =<< (HashMap.!?) files . file . fst =<< List.safeHead markers of
+  Nothing -> ([], annotate (bold <> colorDull Magenta) "<no line>")
   Just code ->
-    fold $
-      indexed code <&> \(n, c) ->
-        let colorizingMarkers = flip
-              filter
-              markers
-              \(Position (bl, bc) (el, ec) _, _) ->
-                if bl == el
-                  then n >= bc && n < ec
-                  else (bl == line && n >= bc) || (el == line && n < ec)
-         in maybe id ((\m -> annotate (bold <> markerColor isError m)) . snd) (List.safeHead colorizingMarkers) (pretty c)
+    let (tabs, code') = indexedWithTabsReplaced code
+     in ( tabs,
+          fold $
+            code' <&> \(n, c) ->
+              let colorizingMarkers = flip
+                    filter
+                    markers
+                    \(Position (bl, bc) (el, ec) _, _) ->
+                      if bl == el
+                        then n >= bc && n < ec
+                        else (bl == line && n >= bc) || (el == line && n < ec)
+               in maybe id ((\m -> annotate (bold <> markerColor isError m)) . snd) (List.safeHead colorizingMarkers) (pretty c)
+        )
   where
-    indexed :: [a] -> [(Int, a)]
-    indexed = goIndexed 1
+    indexedWithTabsReplaced :: String -> ([Int], [(Int, Char)])
+    indexedWithTabsReplaced = goIndexed 1
 
-    goIndexed :: Int -> [a] -> [(Int, a)]
-    goIndexed _ [] = []
-    goIndexed n (x : xs) = (n, x) : goIndexed (n + 1) xs
+    goIndexed :: Int -> String -> ([Int], [(Int, Char)])
+    goIndexed _ [] = ([], [])
+    goIndexed n ('\t' : xs) = bimap (n :) (replicate tabSize (n, ' ') <>) (goIndexed (n + 1) xs)
+    goIndexed n (x : xs) = second ((n, x) :) (goIndexed (n + 1) xs)
 
 -- |
-showAllMarkersInLine :: Pretty msg => Bool -> Bool -> (Doc AnsiStyle -> Doc AnsiStyle) -> Bool -> Bool -> Int -> [(Position, Marker msg)] -> Doc AnsiStyle
-showAllMarkersInLine _ _ _ _ _ _ [] = mempty
-showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUnicode isError leftLen ms =
+showAllMarkersInLine :: Pretty msg => Bool -> Bool -> (Doc AnsiStyle -> Doc AnsiStyle) -> Bool -> Bool -> Int -> Int -> [Int] -> [(Position, Marker msg)] -> Doc AnsiStyle
+showAllMarkersInLine _ _ _ _ _ _ _ _ [] = mempty
+showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUnicode isError leftLen tabSize tabs ms =
   let maxMarkerColumn = snd $ end $ fst $ List.last $ List.sortOn (snd . end . fst) ms
-      specialPrefix =
-        if inSpanOfMultiline
-          then colorMultilinePrefix (if withUnicode then "│ " else "| ") <> space
-          else
-            if hasMultilines
-              then colorMultilinePrefix "  " <> space
-              else mempty
+      specialPrefix
+        | inSpanOfMultiline = colorMultilinePrefix (if withUnicode then "│ " else "| ") <> space
+        | hasMultilines = colorMultilinePrefix "  " <> space
+        | otherwise = mempty
    in -- get the maximum end column, so that we know when to stop looking for other markers on the same line
       hardline <+> dotPrefix leftLen withUnicode <+> (if List.null ms then mempty else specialPrefix <> showMarkers 1 maxMarkerColumn <> showMessages specialPrefix ms maxMarkerColumn)
   where
@@ -449,12 +432,17 @@ showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUn
         let allMarkers = flip filter ms \(Position (_, bc) (_, ec) _, _) -> n >= bc && n < ec
          in -- only consider markers which span onto the current column
             case allMarkers of
-              [] -> space <> showMarkers (n + 1) lineLen
+              [] -> (if n `elem` tabs then fold $ replicate tabSize space else space) <> showMarkers (n + 1) lineLen
               (Position {..}, marker) : _ ->
-                if snd begin == n
-                  then annotate (markerColor isError marker) (if withUnicode then "┬" else "^") <> showMarkers (n + 1) lineLen
-                  else annotate (markerColor isError marker) (if withUnicode then "─" else "-") <> showMarkers (n + 1) lineLen
-    -- if the marker just started on this column, output a caret, else output a dash
+                annotate
+                  (markerColor isError marker)
+                  ( if
+                        | n `elem` tabs && snd begin == n -> (if withUnicode then "┬" else "^") <> fold (replicate (tabSize - 1) if withUnicode then "─" else "-")
+                        | n `elem` tabs -> (fold $ replicate tabSize if withUnicode then "─" else "-")
+                        | snd begin == n -> if withUnicode then "┬" else "^"
+                        | otherwise -> if withUnicode then "─" else "-"
+                  )
+                  <> showMarkers (n + 1) lineLen
 
     showMessages specialPrefix ms lineLen = case List.safeUncons ms of
       Nothing -> mempty -- no more messages to show
@@ -467,15 +455,16 @@ showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUn
             allColumns _ [] = (1, [])
             allColumns n ms@((Position (_, bc) _ _, col) : ms')
               | n == bc = bimap (+ 1) (col :) (allColumns (n + 1) ms')
-              | n < bc = bimap (+ 1) (space :) (allColumns (n + 1) ms)
-              | otherwise = bimap (+ 1) (space :) (allColumns (n + 1) ms')
+              | n < bc = bimap (+ 1) (if n `elem` tabs then (replicate tabSize space <>) else (space :)) (allColumns (n + 1) ms)
+              | otherwise = bimap (+ 1) (if n `elem` tabs then (replicate tabSize space <>) else (space :)) (allColumns (n + 1) ms')
             -- transform the list of remaining markers into a single document line
 
             hasSuccessor = length filteredPipes /= length pipes
 
             lineStart pipes =
               let (n, docs) = allColumns 1 $ List.sortOn (snd . begin . fst) pipes
-               in dotPrefix leftLen withUnicode <+> specialPrefix <> fold docs <> pretty (replicate (bc - n) ' ')
+                  numberOfSpaces = sum [if x `elem` tabs then tabSize else 1 | x <- [n .. bc - 1]] -- bc - n
+               in dotPrefix leftLen withUnicode <+> specialPrefix <> fold docs <> pretty (replicate numberOfSpaces ' ')
             -- the start of the line contains the "dot"-prefix as well as all the pipes for all the still not rendered marker messages
 
             prefix =
@@ -485,12 +474,11 @@ showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUn
                   pipesBeforeRendered = pipesBefore <&> second \marker -> annotate (markerColor isError marker) (if withUnicode then "│" else "|")
                   -- pre-render pipes which are before because they will be shown
 
-                  lastBeginPosition = snd . begin . fst <$> List.safeLast (List.sortOn (Down . snd . begin . fst) pipesAfter)
+                  lastBeginPosition = snd . begin . fst <$> List.safeHead (List.sortOn (snd . begin . fst) pipesAfter)
 
                   lineLen = case lastBeginPosition of
                     Nothing -> 0
-                    Just col -> col - bc
-
+                    Just col -> sum [if x `elem` tabs then tabSize else 1 | x <- [bc .. col - 1]] -- col - bc
                   currentPipe =
                     if
                         | withUnicode && hasSuccessor -> "├"

@@ -31,7 +31,7 @@ main = do
             ("somefile.zc", "let id<a>(x : a) : a := x\n  + 1"),
             ("err.nst", "\n\n\n\n    = jmp g\n\n    g: forall(s: Ts, e: Tc).{ %r0: *s64 | s -> e }"),
             ("unsized.nst", "main: forall(a: Ta, s: Ts, e: Tc).{ %r5: forall().{| s -> e } | s -> %r5 }\n    = salloc a\n    ; sfree\n"),
-            ("unicode.txt", "±⅀\t★♲♥🎉⑳⓴ჳᏁℳ爪")
+            ("unicode.txt", "±⅀\t★♲♥🎉汉⑳⓴ჳᏁℳ爪")
           ]
 
   let reports =
@@ -70,9 +70,9 @@ main = do
   let diag = HashMap.foldlWithKey' addFile (foldr (flip addReport) def reports) files
 
   hPutStrLn stdout "\n\nWith unicode: ─────────────────────────\n"
-  printDiagnostic stdout True True diag
+  printDiagnostic stdout True True 4 diag
   hPutStrLn stdout "\n\nWithout unicode: ----------------------\n"
-  printDiagnostic stdout False True diag
+  printDiagnostic stdout False True 4 diag
 #ifdef USE_AESON
   hPutStrLn stdout "\n\nAs JSON: ------------------------------\n"
   BS.hPutStr stdout (diagnosticToJson diag)
@@ -354,5 +354,7 @@ errorWithStrangeUnicodeInput =
   err
     (Just "❎")
     "ⓈⓉⓇⒶⓃⒼⒺ ⓊⓃⒾⒸⓄⒹⒺ"
-    [(Position (1, 1) (1, 7) "unicode.txt", This "should work fine 🎉")]
+    [ (Position (1, 1) (1, 7) "unicode.txt", This "should work fine 🎉"),
+      (Position (1, 7) (1, 9) "unicode.txt", Where "After TAB")
+    ]
     []
