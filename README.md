@@ -25,6 +25,8 @@ Colors are also optional, and you may choose not to print them.
 - Diagnostics can be exported to JSON, if you don't quite like the rendering as it is, or if you need to transmit them to e.g. a website
 - Plug and play (mega)parsec integration and it magically works with your parsers!
 - Support for optional custom error codes, if you want to go the Rust way
+- Variable width Unicode characters are handled in a crossplatform manner
+- TAB characters have custom sizes specified when printing a diagnostic, so that *you* decide the width of a TAB, not your terminal emulator!
 
 ## Usage
 
