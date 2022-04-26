@@ -150,6 +150,8 @@ import Error.Diagnose.Report as Export
 --
 --   - A 'Bool' set to 'False' if you don't want colors in the end result.
 --
+--   - A 'Int' describing the number of spaces with which to output a TAB character.
+--
 --   - And finally the 'Diagnostic' to output.
 
 -- $diagnostic_json
@@ -218,7 +220,7 @@ import Error.Diagnose.Report as Export
 --   >            --   Creates a new diagnostic with no default hints from the bundle returned by megaparsec
 --   >         diag' = addFile diag filename content
 --   >            --   Add the file used when parsing with the same filename given to 'MP.runParser'
---   >     in printDiagnostic stderr True True diag'
+--   >     in printDiagnostic stderr True True 4 diag'
 --   >   Right res   -> print res
 --
 --   This example will return the following error message (assuming default instances for @'Error.Diagnose.Compat.Megaparsec.HasHints' 'Data.Void.Void' msg@):
@@ -259,7 +261,7 @@ import Error.Diagnose.Report as Export
 --   >            --   Creates a new diagnostic with no default hints from the bundle returned by megaparsec
 --   >         diag' = addFile diag filename content
 --   >            --   Add the file used when parsing with the same filename given to 'MP.runParser'
---   >     in printDiagnostic stderr True True diag'
+--   >     in printDiagnostic stderr True True 4 diag'
 --   >   Right res  -> print res
 --
 --   This will output the following errr on @stderr@:

@@ -97,17 +97,14 @@ let diagnostic  = addFile def "somefile.zc" "let id<a>(x : a) : a := x\n  + 1"
 let diagnostic' = addReport diagnostic beautifulExample
 
 -- Print with unicode characters and colors
-printDiagnostic stdout True True diagnostic'
+printDiagnostic stdout True True 4 diagnostic'
 ```
 
 More examples are given in the [`test/rendering`](./test/rendering) folder.
 
 ## TODO list
 
-- Handle variable-width characters such as tabs or some unicode characters.
-
-  For tabs, we may just resort to having the user fix a given number of
-  spaces in the `printDiagnostic` function.
+<< empty, for now >>
 
 ## License
 

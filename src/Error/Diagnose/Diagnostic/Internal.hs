@@ -69,9 +69,9 @@ prettyDiagnostic ::
   Pretty msg =>
   -- | Should we use unicode when printing paths?
   Bool ->
-  -- | The number of spaces each TAB character will span
+  -- | The number of spaces each TAB character will span.
   Int ->
-  -- | The diagnostic to print
+  -- | The diagnostic to print.
   Diagnostic msg ->
   Doc AnsiStyle
 prettyDiagnostic withUnicode tabSize (Diagnostic reports file) =
@@ -87,7 +87,7 @@ printDiagnostic ::
   Bool ->
   -- | 'False' to disable colors.
   Bool ->
-  -- | The number of spaces each TAB character will span
+  -- | The number of spaces each TAB character will span.
   Int ->
   -- | The diagnostic to output.
   Diagnostic msg ->

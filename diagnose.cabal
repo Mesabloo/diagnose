@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           diagnose
-version:        1.7.2
+version:        1.8.0
 synopsis:       Beautiful error reporting done easily
 description:    This package provides a simple way of getting beautiful compiler/interpreter errors
                 using a very simple interface for the programmer.
@@ -75,7 +75,8 @@ library
   if flag(json)
     cpp-options: -DUSE_AESON
     build-depends:
-        aeson ==1.5.*
+        aeson >=1.5 && <2
+      , bytestring >=0.9 && <1
   if flag(megaparsec-compat)
     build-depends:
         containers ==0.6.*
@@ -116,7 +117,8 @@ test-suite diagnose-megaparsec-tests
   if flag(json)
     cpp-options: -DUSE_AESON
     build-depends:
-        aeson ==1.5.*
+        aeson >=1.5 && <2
+      , bytestring >=0.9 && <1
   if flag(megaparsec-compat)
     build-depends:
         containers ==0.6.*
@@ -154,7 +156,8 @@ test-suite diagnose-parsec-tests
   if flag(json)
     cpp-options: -DUSE_AESON
     build-depends:
-        aeson ==1.5.*
+        aeson >=1.5 && <2
+      , bytestring >=0.9 && <1
   if flag(megaparsec-compat)
     build-depends:
         containers ==0.6.*
@@ -191,7 +194,8 @@ test-suite diagnose-rendering-tests
   if flag(json)
     cpp-options: -DUSE_AESON
     build-depends:
-        aeson ==1.5.*
+        aeson >=1.5 && <2
+      , bytestring >=0.9 && <1
   if flag(megaparsec-compat)
     build-depends:
         containers ==0.6.*

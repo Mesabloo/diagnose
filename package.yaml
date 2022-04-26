@@ -1,5 +1,5 @@
 name: diagnose
-version: 1.7.2
+version: 1.8.0
 github: "mesabloo/diagnose"
 license: BSD3
 author: "Ghilain Bergeron"
@@ -56,7 +56,8 @@ flags:
 when:
   - condition: flag(json)
     dependencies:
-    - aeson == 1.5.*
+    - aeson >= 1.5 && <2
+    - bytestring >= 0.9 && < 1
 
     cpp-options:
     - -DUSE_AESON

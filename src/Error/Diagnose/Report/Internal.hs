@@ -21,6 +21,9 @@
 --            Please limit yourself to the "Error.Diagnose.Report" module, which exports some of the useful functions defined here.
 module Error.Diagnose.Report.Internal where
 
+#ifdef USE_AESON
+import Data.Aeson (ToJSON(..), object, (.=))
+#endif
 import Control.Applicative ((<|>))
 import Data.Bifunctor (bimap, first, second)
 import Data.Char.WCWidth (wcwidth)
@@ -58,6 +61,30 @@ instance Semigroup msg => Semigroup (Report msg) where
 
 instance Monoid msg => Monoid (Report msg) where
   mempty = Report False Nothing mempty mempty mempty
+
+#ifdef USE_AESON
+instance ToJSON msg => ToJSON (Report msg) where
+  toJSON (Report isError code msg markers hints) =
+    object [ "kind" .= (if isError then "error" else "warning" :: String)
+           , "code" .= code
+           , "message" .= msg
+           , "markers" .= fmap showMarker markers
+           , "hints" .= hints
+           ]
+    where
+      showMarker (pos, marker) =
+        object $ [ "position" .= pos ]
+              <> case marker of
+                   This m  -> [ "message" .= m
+                              , "kind" .= ("this" :: String)
+                              ]
+                   Where m -> [ "message" .= m
+                              , "kind" .= ("where" :: String)
+                              ]
+                   Maybe m -> [ "message" .= m
+                              , "kind" .= ("maybe" :: String)
+                              ]
+#endif
 
 -- | The type of markers with abstract message type, shown under code lines.
 data Marker msg
