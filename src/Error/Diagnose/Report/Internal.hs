@@ -36,6 +36,7 @@ import qualified Data.HashMap.Lazy as HashMap
 import qualified Data.HashMap.Lazy as IntMap
 import qualified Data.List as List
 import qualified Data.List.Safe as List
+import Data.Ord (Down (Down))
 import Error.Diagnose.Position
 import Prettyprinter (Doc, Pretty (..), align, annotate, colon, hardline, lbracket, rbracket, space, width, (<+>))
 import Prettyprinter.Internal (Doc (..))
@@ -298,7 +299,7 @@ prettySubReport fileContent withUnicode isError tabSize maxLineNumberLength isFi
 
       sortedMarkersPerLine = {- second (List.sortOn (first $ snd . begin)) <$> -} List.sortOn fst (HashMap.toList markersPerLine)
 
-      reportFile = maybe (pretty @Position def) (pretty . fst) $ List.safeHead (List.sortOn snd markers)
+      reportFile = maybe (pretty @Position def) (pretty . fst) $ List.safeHead (List.sortOn (Down . snd) markers)
       -- the reported file is the file of the first 'This' marker (only one must be present)
 
       allLineNumbers = List.sort $ List.nub $ (fst <$> sortedMarkersPerLine) <> (multilineMarkers >>= \(Position (bl, _) (el, _) _, _) -> [bl .. el])
