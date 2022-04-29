@@ -252,6 +252,12 @@ linePrefix leftLen lineNo withUnicode =
    in annotate (bold <> color Black) $ mempty <+> pad (leftLen - lineNoLen) ' ' mempty <> pretty lineNo <+> if withUnicode then "│" else "|"
 {-# INLINE linePrefix #-}
 
+ellipsisPrefix ::
+  Int ->
+  Bool ->
+  Doc AnsiStyle
+ellipsisPrefix leftLen withUnicode = pad leftLen ' ' mempty <> annotate (bold <> color Black) (if withUnicode then space <> "⋮" else "...")
+
 groupMarkersPerFile ::
   Pretty msg =>
   [(Position, Marker msg)] ->
@@ -346,6 +352,97 @@ prettyAllLines ::
   [(Position, Marker msg)] ->
   [Int] ->
   Doc AnsiStyle
+prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNumbers =
+  case lineNumbers of
+    [] ->
+      showMultiline True multiline
+    [l] ->
+      let (ms, doc) = showForLine True l
+       in doc
+            <> prettyAllLines files withUnicode isError tabSize leftLen inline ms []
+    l1 : l2 : ls ->
+      let (ms, doc) = showForLine False l1
+       in doc
+            <> (if l2 /= l1 + 1 then hardline <+> ellipsisPrefix leftLen withUnicode else mempty)
+            <> prettyAllLines files withUnicode isError tabSize leftLen inline ms (l2 : ls)
+  where
+    showForLine isLastLine line =
+      {-
+          A line of code is composed of:
+          (1)     <line> | <source code>
+          (2)            : <markers>
+          (3)            : <marker messages>
+
+          Multline markers may also take additional space (2 characters) on the right of the bar
+      -}
+      let allInlineMarkersInLine = snd =<< filter ((==) line . fst) inline
+
+          allMultilineMarkersInLine = flip filter multiline \(Position (bl, _) (el, _) _, _) -> bl == line || el == line
+
+          allMultilineMarkersSpanningLine = flip filter multiline \(Position (bl, _) (el, _) _, _) -> bl < line && el > line
+
+          inSpanOfMultiline = flip any multiline \(Position (bl, _) (el, _) _, _) -> bl <= line && el >= line
+
+          colorOfFirstMultilineMarker = maybe id (annotate . markerColor isError . snd) (List.safeHead $ allMultilineMarkersInLine <> allMultilineMarkersSpanningLine)
+          -- take the first multiline marker to color the entire line, if there is one
+
+          (multilineEndingOnLine, otherMultilines) = flip List.partition multiline \(Position _ (el, _) _, _) -> el == line
+
+          !additionalPrefix = case allMultilineMarkersInLine of
+            [] ->
+              if not $ null multiline
+                then
+                  if not $ null allMultilineMarkersSpanningLine
+                    then colorOfFirstMultilineMarker if withUnicode then "│  " else "|  "
+                    else "   "
+                else mempty
+            (p@(Position _ (el, _) _), marker) : _ ->
+              let hasPredecessor = el == line || maybe False ((/=) p . fst . fst) (List.safeUncons multiline)
+               in colorOfFirstMultilineMarker
+                    ( if
+                          | hasPredecessor && withUnicode -> "├"
+                          | hasPredecessor -> "|"
+                          | withUnicode -> "╭"
+                          | otherwise -> "+"
+                    )
+                    <> annotate (markerColor isError marker) (if withUnicode then "┤" else ">")
+                    <> space
+
+          allMarkersInLine = {- List.sortOn fst $ -} allInlineMarkersInLine <> allMultilineMarkersInLine
+
+          (widths, renderedCode) = getLine_ files (allMarkersInLine <> allMultilineMarkersSpanningLine) line tabSize isError
+       in ( otherMultilines,
+            hardline
+              <> {- (1) -} linePrefix leftLen line withUnicode <+> additionalPrefix
+              <> renderedCode
+              <> {- (2) -} showAllMarkersInLine (not $ null multiline) inSpanOfMultiline colorOfFirstMultilineMarker withUnicode isError leftLen widths allInlineMarkersInLine
+              <> showMultiline (isLastLine || List.safeLast multilineEndingOnLine == List.safeLast multiline) multilineEndingOnLine
+          )
+
+    showMultiline _ [] = mempty
+    showMultiline isLastMultiline multiline =
+      let colorOfLastMultilineMarker = maybe mempty (markerColor isError . snd) (List.safeLast multiline)
+          -- take the color of the last multiline marker in case we need to add additional bars
+
+          prefix = hardline <+> dotPrefix leftLen withUnicode <> space
+          prefixWithBar color = prefix <> annotate color (if withUnicode then "│ " else "| ")
+
+          showMultilineMarkerMessage (_, marker) isLast =
+            annotate (markerColor isError marker) $
+              ( if isLast && isLastMultiline
+                  then if withUnicode then "╰╸ " else "`- "
+                  else if withUnicode then "├╸ " else "|- "
+              )
+                <> replaceLinesWith (if isLast then prefix <> "   " else prefixWithBar (markerColor isError marker) <> space) (pretty $ markerMessage marker)
+
+          showMultilineMarkerMessages [] = []
+          showMultilineMarkerMessages [m] = [showMultilineMarkerMessage m True]
+          showMultilineMarkerMessages (m : ms) = showMultilineMarkerMessage m False : showMultilineMarkerMessages ms
+       in prefixWithBar colorOfLastMultilineMarker <> prefix <> fold (List.intersperse prefix $ showMultilineMarkerMessages $ reverse multiline)
+
+-- <> {- (3) -} prettyAllLines files withUnicode isError tabSize leftLen inline multiline ls
+
+-- TODO
 prettyAllLines _ _ _ _ _ _ [] [] = mempty
 prettyAllLines _ withUnicode isError _ leftLen _ multiline [] =
   let colorOfLastMultilineMarker = maybe mempty (markerColor isError . snd) (List.safeLast multiline)

@@ -31,7 +31,9 @@ main = do
             ("somefile.zc", "let id<a>(x : a) : a := x\n  + 1"),
             ("err.nst", "\n\n\n\n    = jmp g\n\n    g: forall(s: Ts, e: Tc).{ %r0: *s64 | s -> e }"),
             ("unsized.nst", "main: forall(a: Ta, s: Ts, e: Tc).{ %r5: forall().{| s -> e } | s -> %r5 }\n    = salloc a\n    ; sfree\n"),
-            ("unicode.txt", "±⅀\t★♲♥🎉汉⑳⓴ჳᏁℳ爪")
+            ("unicode.txt", "±⅀\t★♲♥🎉汉⑳⓴ჳᏁℳ爪"),
+            ("gaps.txt", "abc\ndef\nghi\njkl\nmno\npqr"),
+            ("repro3.file", "\n\n  ayo yoa\n    a b\n      c d e f g\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nlayer qwertyy using yoooo: \"a\" \"b\" \"c\"\n")
           ]
 
   let reports =
@@ -65,6 +67,9 @@ main = do
           errorWithCode,
           errorWithStrangeUnicodeInput,
           errorWithMultilineMarkerOn3Lines,
+          errorMultilineMarkerNotAtEnd,
+          errorWithLineGap,
+          repro3,
           beautifulExample
         ]
 
@@ -366,4 +371,36 @@ errorWithMultilineMarkerOn3Lines =
     Nothing
     "Multiline marker on 3 lines"
     [(Position (1, 3) (3, 10) "test.zc", This "should color all 3 lines correctly")]
+    []
+
+errorMultilineMarkerNotAtEnd :: Report String
+errorMultilineMarkerNotAtEnd =
+  err
+    Nothing
+    "Multiline marker not at end of report"
+    [ (Position (1, 10) (2, 3) "test.zc", This "is a multline marker"),
+      (Position (3, 5) (3, 13) "test.zc", Where "inline marker found after")
+    ]
+    []
+
+errorWithLineGap :: Report String
+errorWithLineGap =
+  err
+    Nothing
+    "Error with line gaps between two markers"
+    [ (Position (1, 1) (1, 3) "gaps.txt", Where "is a first marker"),
+      (Position (5, 2) (5, 4) "gaps.txt", This "is the main marker")
+    ]
+    []
+
+repro3 :: Report String
+repro3 =
+  err
+    (Just "WrongStaticLayerLength")
+    "The length of the static layer does not match the length of the template it uses"
+    [ (Position (3, 3) (5, 16) "repro3.file", Where "This template has 9 elements"),
+      (Position (24, 28) (24, 39) "repro3.file", This "... but this layer only has 3 members"),
+      (Position (24, 21) (24, 26) "repro3.file", Where "This is the template being used"),
+      (Position (24, 7) (24, 15) "repro3.file", Where "while checking this static layer")
+    ]
     []
