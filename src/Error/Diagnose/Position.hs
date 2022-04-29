@@ -18,7 +18,6 @@ import Data.Aeson (ToJSON(..), object, (.=))
 #endif
 import Data.Default (Default, def)
 import Data.Hashable (Hashable)
-import Data.Text (Text)
 import GHC.Generics (Generic (..))
 import Prettyprinter (Pretty (..), colon)
 
@@ -50,8 +49,8 @@ instance Ord Position where
 instance Pretty Position where
   pretty (Position (bl, bc) (el, ec) f) = pretty f <> at <> pretty bl <> colon <> pretty bc <> dash <> pretty el <> colon <> pretty ec
     where
-      at = pretty @Text "@"
-      dash = pretty @Text "-"
+      at = pretty @String "@"
+      dash = pretty @String "-"
 
 instance Hashable Position
 
