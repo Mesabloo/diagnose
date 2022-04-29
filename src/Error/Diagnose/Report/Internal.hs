@@ -430,7 +430,7 @@ getLine_ files markers line tabSize isError = case List.safeIndex (line - 1) =<<
                     \(Position (bl, bc) (el, ec) _, _) ->
                       if bl == el
                         then n >= bc && n < ec
-                        else (bl == line && n >= bc) || (el == line && n < ec)
+                        else (bl == line && n >= bc) || (el == line && n < ec) || (bl < line && el > line)
                in maybe id ((\m -> annotate (bold <> markerColor isError m)) . snd) (List.safeHead colorizingMarkers) (pretty c)
         )
   where

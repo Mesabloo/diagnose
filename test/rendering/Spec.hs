@@ -64,6 +64,7 @@ main = do
           errorMultipleFiles,
           errorWithCode,
           errorWithStrangeUnicodeInput,
+          errorWithMultilineMarkerOn3Lines,
           beautifulExample
         ]
 
@@ -357,4 +358,12 @@ errorWithStrangeUnicodeInput =
     [ (Position (1, 1) (1, 7) "unicode.txt", This "should work fine 🎉"),
       (Position (1, 7) (1, 9) "unicode.txt", Where "After TAB")
     ]
+    []
+
+errorWithMultilineMarkerOn3Lines :: Report String
+errorWithMultilineMarkerOn3Lines =
+  err
+    Nothing
+    "Multiline marker on 3 lines"
+    [(Position (1, 3) (3, 10) "test.zc", This "should color all 3 lines correctly")]
     []
