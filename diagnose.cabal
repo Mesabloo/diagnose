@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           diagnose
-version:        1.8.1
+version:        1.8.2
 synopsis:       Beautiful error reporting done easily
 description:    This package provides a simple way of getting beautiful compiler/interpreter errors
                 using a very simple interface for the programmer.
