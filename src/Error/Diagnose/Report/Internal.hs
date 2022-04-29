@@ -369,7 +369,7 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
     l1 : l2 : ls ->
       let (ms, doc) = showForLine False l1
        in doc
-            <> (if l2 /= l1 + 1 then hardline <+> ellipsisPrefix leftLen withUnicode else mempty)
+            <> (if l2 /= l1 + 1 then hardline <+> dotPrefix leftLen withUnicode else mempty)
             <> prettyAllLines files withUnicode isError tabSize leftLen inline ms (l2 : ls)
   where
     showForLine isLastLine line =
