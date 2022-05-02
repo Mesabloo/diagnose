@@ -63,8 +63,12 @@ instance ToJSON msg => ToJSON (Diagnostic msg) where
                ]
 #endif
 
--- | Pretty prints a diagnostic into a 'Doc'ument that can be output using
---   'Text.PrettyPrint.ANSI.Leijen.hPutDoc' or 'Text.PrettyPrint.ANSI.Leijen.displayIO'.
+-- | Pretty prints a 'Diagnostic' into a 'Doc'ument that can be output using 'hPutDoc'.
+--
+--   Colors are put by default.
+--   If you do not want these, just 'unAnnotate' the resulting document like so:
+--
+--   >>> let doc = unAnnotate (prettyDiagnostic withUnicode tabSize diagnostic)
 prettyDiagnostic ::
   Pretty msg =>
   -- | Should we use unicode when printing paths?

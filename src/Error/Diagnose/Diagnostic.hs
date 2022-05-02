@@ -21,6 +21,7 @@ import Error.Diagnose.Diagnostic.Internal as Export
     addFile,
     addReport,
     def,
+    prettyDiagnostic,
     printDiagnostic,
   )
 import System.IO as Export (stderr, stdout)
