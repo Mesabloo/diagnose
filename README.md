@@ -27,6 +27,7 @@ Colors are also optional, and you may choose not to print them.
 - Support for optional custom error codes, if you want to go the Rust way
 - Variable width Unicode characters are handled in a crossplatform manner
 - TAB characters have custom sizes specified when printing a diagnostic, so that *you* decide the width of a TAB, not your terminal emulator!
+- Colors can be tweaked thanks to the ability to export diagnostics as `Doc`uments
 
 ## Usage
 
@@ -98,8 +99,8 @@ let beautifulExample =
 let diagnostic  = addFile def "somefile.zc" "let id<a>(x : a) : a := x\n  + 1"
 let diagnostic' = addReport diagnostic beautifulExample
 
--- Print with unicode characters and colors
-printDiagnostic stdout True True 4 diagnostic'
+-- Print with unicode characters, colors and the default style
+printDiagnostic stdout True True 4 defaultStyle diagnostic'
 ```
 
 More examples are given in the [`test/rendering`](./test/rendering) folder.

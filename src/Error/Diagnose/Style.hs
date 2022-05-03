@@ -1,17 +1,54 @@
-module Error.Diagnose.Style where
+-- |
+-- Module      : Error.Diagnose.Style
+-- Description : Custom style definitions
+-- Copyright   : (c) Mesabloo, 2021
+-- License     : BSD3
+-- Stability   : experimental
+-- Portability : Portable
+module Error.Diagnose.Style
+  ( -- * Defining new style
+    Annotation (..),
+    Style,
+    -- $defining_new_styles
+
+    -- * Default style specification
+    defaultStyle,
+
+    -- * Re-exports
+    reAnnotate,
+  )
+where
 
 import Prettyprinter (Doc, reAnnotate)
 import Prettyprinter.Render.Terminal (AnsiStyle, Color (..), bold, color, colorDull)
 
+-- $defining_new_styles
+--
+-- Defining new color styles (one may call them "themes") is actually rather easy.
+--
+-- A 'Style' is a function from an annotated 'Doc'ument to another annotated 'Doc'ument.
+-- Note that only the annotation type changes, hence the need of only providing a unidirectional mapping between those.
+--
+-- 'Annotation's are used when creating a 'Doc'ument and are simply placeholders to specify custom colors.
+-- 'AnsiStyle' is the concrete annotation to specify custom colors when rendering a 'Doc'ument.
+--
+-- One may define additional styles as follows:
+--
+-- > myNewCustomStyle :: Style
+-- > myNewCustomStyle = reAnnotate \case
+-- >   -- all cases for all annotations
+--
+-- For simplicity's sake, a default style is given as 'defaultStyle'.
+
 -- | Some annotations as placeholders for colors in a 'Doc'.
 data Annotation
-  = -- | The color of 'This' markers, depending on whether the report is an error
+  = -- | The color of 'Error.Diagnose.Report.This' markers, depending on whether the report is an error
     --   report or a warning report.
     ThisColor
       Bool
-  | -- | The color of 'Maybe' markers.
+  | -- | The color of 'Error.Diagnose.Report.Maybe' markers.
     MaybeColor
-  | -- | The color of 'Where' markers.
+  | -- | The color of 'Error.Diagnose.Report.Where' markers.
     WhereColor
   | -- | The color for hints.
     --
@@ -42,13 +79,14 @@ type Style = Doc Annotation -> Doc AnsiStyle
 
 -- | The default style for diagnostics, where:
 --
---   * 'This' markers are colored in red for errors and yellow for warnings
---   * 'Where' markers are colored in dull blue
---   * 'Maybe' markers are colored in magenta
+--   * 'Error.Diagnose.Report.This' markers are colored in red for errors and yellow for warnings
+--   * 'Error.Diagnose.Report.Where' markers are colored in dull blue
+--   * 'Error.Diagnose.Report.Maybe' markers are colored in magenta
+--   * Marker rules are of the same color of the marker, but also in bold
 --   * Hints are output in cyan
 --   * The left rules are colored in bold black
 --   * File names are output in dull green
---   * The @[error]@ at the top is colored in red for errors and yellow for warnings
+--   * The @[error]@/@[warning]@ at the top is colored in red for errors and yellow for warnings
 defaultStyle :: Style
 defaultStyle = reAnnotate style
   where
@@ -59,6 +97,6 @@ defaultStyle = reAnnotate style
       HintColor -> color Cyan
       FileColor -> bold <> colorDull Green
       RuleColor -> bold <> color Black
-      KindColor isError -> bold <> color if isError then Red else Yellow
+      KindColor isError -> bold <> style (ThisColor isError)
       NoLineColor -> bold <> colorDull Magenta
       MarkerStyle st -> bold <> style st

@@ -28,6 +28,7 @@ library:
   - Error.Diagnose.Position
   - Error.Diagnose.Pretty
   - Error.Diagnose.Report
+  - Error.Diagnose.Style
   when:
   - condition: flag(megaparsec-compat)
     exposed-modules:

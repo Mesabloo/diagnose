@@ -153,6 +153,9 @@ import Error.Diagnose.Style as Export
 --
 --   - A 'Int' describing the number of spaces with which to output a TAB character.
 --
+--   - The 'Style' describing colors of the report.
+--     See the module "Error.Diagnose.Style" for how to define new styles.
+--
 --   - And finally the 'Diagnostic' to output.
 
 -- $diagnostic_json
