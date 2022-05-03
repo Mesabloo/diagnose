@@ -13,6 +13,7 @@ import Error.Diagnose
     addFile,
     addReport,
     def,
+    defaultStyle,
 #ifdef USE_AESON
     diagnosticToJson,
 #endif
@@ -76,9 +77,9 @@ main = do
   let diag = HashMap.foldlWithKey' addFile (foldl addReport def reports) files
 
   hPutStrLn stdout "\n\nWith unicode: ─────────────────────────\n"
-  printDiagnostic stdout True True 4 diag
+  printDiagnostic stdout True True 4 defaultStyle diag
   hPutStrLn stdout "\n\nWithout unicode: ----------------------\n"
-  printDiagnostic stdout False True 4 diag
+  printDiagnostic stdout False True 4 defaultStyle diag
 #ifdef USE_AESON
   hPutStrLn stdout "\n\nAs JSON: ------------------------------\n"
   BS.hPutStr stdout (diagnosticToJson diag)

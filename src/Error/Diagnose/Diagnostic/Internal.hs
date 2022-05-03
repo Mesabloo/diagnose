@@ -27,8 +27,9 @@ import qualified Data.HashMap.Lazy as HashMap
 import Data.List (intersperse)
 import Error.Diagnose.Report (Report)
 import Error.Diagnose.Report.Internal (prettyReport)
+import Error.Diagnose.Style (Annotation, Style)
 import Prettyprinter (Doc, Pretty, hardline, unAnnotate)
-import Prettyprinter.Render.Terminal (AnsiStyle, hPutDoc)
+import Prettyprinter.Render.Terminal (hPutDoc)
 import System.IO (Handle)
 
 -- | The data type for diagnostic containing messages of an abstract type.
@@ -69,6 +70,11 @@ instance ToJSON msg => ToJSON (Diagnostic msg) where
 --   If you do not want these, just 'unAnnotate' the resulting document like so:
 --
 --   >>> let doc = unAnnotate (prettyDiagnostic withUnicode tabSize diagnostic)
+--
+--   Changing the style is also rather easy:
+--
+--   >>> let myCustomStyle :: Style = _
+--   >>> let doc = myCustomStyle (prettyDiagnostic withUnicode tabSize diagnostic)
 prettyDiagnostic ::
   Pretty msg =>
   -- | Should we use unicode when printing paths?
@@ -77,7 +83,7 @@ prettyDiagnostic ::
   Int ->
   -- | The diagnostic to print.
   Diagnostic msg ->
-  Doc AnsiStyle
+  Doc Annotation
 prettyDiagnostic withUnicode tabSize (Diagnostic reports file) =
   fold . intersperse hardline $ prettyReport file withUnicode tabSize <$> reports
 {-# INLINE prettyDiagnostic #-}
@@ -93,14 +99,13 @@ printDiagnostic ::
   Bool ->
   -- | The number of spaces each TAB character will span.
   Int ->
+  -- | The style in which to output the diagnostic.
+  Style ->
   -- | The diagnostic to output.
   Diagnostic msg ->
   m ()
-printDiagnostic handle withUnicode withColors tabSize diag =
-  liftIO $ hPutDoc handle (unlessId withColors unAnnotate $ prettyDiagnostic withUnicode tabSize diag)
-  where
-    unlessId cond app = if cond then id else app
-    {-# INLINE unlessId #-}
+printDiagnostic handle withUnicode withColors tabSize style diag =
+  liftIO $ hPutDoc handle ((if withColors then style else unAnnotate) $ prettyDiagnostic withUnicode tabSize diag)
 {-# INLINE printDiagnostic #-}
 
 -- | Inserts a new referenceable file within the diagnostic.

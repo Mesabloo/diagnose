@@ -55,6 +55,7 @@ library
       Error.Diagnose.Compat.Hints
       Error.Diagnose.Diagnostic.Internal
       Error.Diagnose.Report.Internal
+      Error.Diagnose.Style
       Paths_diagnose
   hs-source-dirs:
       src
