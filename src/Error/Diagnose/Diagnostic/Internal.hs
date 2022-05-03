@@ -122,7 +122,7 @@ addReport ::
   Report msg ->
   Diagnostic msg
 addReport (Diagnostic reports files) report =
-  Diagnostic (report : reports) files
+  Diagnostic (reports <> [report]) files
 {-# INLINE addReport #-}
 
 #ifdef USE_AESON
