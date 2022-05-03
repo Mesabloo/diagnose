@@ -73,7 +73,7 @@ main = do
           beautifulExample
         ]
 
-  let diag = HashMap.foldlWithKey' addFile (foldr (flip addReport) def reports) files
+  let diag = HashMap.foldlWithKey' addFile (foldl addReport def reports) files
 
   hPutStrLn stdout "\n\nWith unicode: ─────────────────────────\n"
   printDiagnostic stdout True True 4 diag

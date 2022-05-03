@@ -95,6 +95,8 @@ test-suite diagnose-megaparsec-tests
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Instances
+      Repro6
       Paths_diagnose
   hs-source-dirs:
       test/megaparsec
