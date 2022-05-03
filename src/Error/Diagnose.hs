@@ -13,7 +13,7 @@ module Error.Diagnose
     -- *** Pretty-printing a diagnostic onto a file 'System.IO.Handle'
     -- $diagnostic_pretty
 
-    -- *** Pretty-printing a diagnostic as a 'PrettyPrinter.Doc'ument
+    -- *** Pretty-printing a diagnostic as a document
     -- $diagnostic_to_doc
 
     -- *** Exporting a diagnostic to JSON
@@ -164,9 +164,12 @@ import Error.Diagnose.Style as Export
 
 -- $diagnostic_to_doc
 --
--- 'Diagnostic's can be “output” (at least ready to be rendered) to a 'Prettyprinter.Doc', which allows it to be easily added to other 'Prettyprinter.Doc' outputs.
+-- 'Diagnostic's can be “output” (at least ready to be rendered) to a 'Prettyprinter.Doc' using 'prettyDiagnostic', which allows it to be easily added to other 'Prettyprinter.Doc' outputs.
 -- This makes it easy to customize the error messages further (though not the internal parts, only adding to it).
 -- As a 'Prettyprinter.Doc', there is also the possibility of altering internal annotations (styles) much easier (although this is already possible when printing the diagnostic).
+--
+-- The arguments of the function mostly follow the ones from 'printDiagnostic'.
+-- The style is not one, as it can be applied by simply applying the styling function to the resulting function (if wanted).
 
 -- $diagnostic_json
 --
