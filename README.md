@@ -78,8 +78,10 @@ If you use another way of keeping track of position information, you will need t
 Once your reports are created, you will need to add them inside the diagnostic using `addReport`.
 You will also need to put your files into the diagnostic with `addFile`, else lines won't be printed and you will get `<no-line>` in your reports.
 
-After all of this is done, you may choose to either print the diagnostic onto a handle using `printDiagnostic`
-or export it to JSON with `diagnosticToJson` or the `ToJSON` class of Aeson (the output format is documented under the `diagnosticToJson` function).
+After all of this is done, you may choose to either:
+- print the diagnostic onto a file `Handle` (most likely `stdout` or `stderr`) using `printDiagnostic`;
+- create a `Doc`ument which can be further altered using `prettyDiagnostic`;
+- or export it to JSON with `diagnosticToJson` or the `ToJSON` class of Aeson (the output format is documented under the `diagnosticToJson` function).
 
 ## Example
 
@@ -103,7 +105,7 @@ let diagnostic' = addReport diagnostic beautifulExample
 printDiagnostic stdout True True 4 defaultStyle diagnostic'
 ```
 
-More examples are given in the [`test/rendering`](./test/rendering) folder.
+More examples are given in the [`test/rendering`](./test/rendering) folder (execute `stack test` to see the output).
 
 ## TODO list
 
@@ -113,4 +115,4 @@ More examples are given in the [`test/rendering`](./test/rendering) folder.
 
 This work is licensed under the BSD-3 clause license.
 
-Copyright (c) 2021- Mesabloo, all rights reserved.
+Copyright (c) 2021-2022 Mesabloo, all rights reserved.

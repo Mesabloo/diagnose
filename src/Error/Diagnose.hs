@@ -10,8 +10,11 @@ module Error.Diagnose
     -- ** Creating diagnostics from reports
     -- $create_diagnostic
 
-    -- *** Pretty-printing a diagnostic
+    -- *** Pretty-printing a diagnostic onto a file 'System.IO.Handle'
     -- $diagnostic_pretty
+
+    -- *** Pretty-printing a diagnostic as a 'PrettyPrinter.Doc'ument
+    -- $diagnostic_to_doc
 
     -- *** Exporting a diagnostic to JSON
     -- $diagnostic_json
@@ -96,13 +99,13 @@ import Error.Diagnose.Style as Export
 --
 --   Markers put in the report can be one of (the colors specified are used only when pretty-printing):
 --
---   - A 'This' marker, which is the primary marker of the report.
+--   - A 'Error.Diagnose.Report.This' marker, which is the primary marker of the report.
 --     While it is allowed to have multiple of these inside one report, it is encouraged not to, because the position at the top of
---     the report will only be the one of the /first/ 'This' marker, and because the resulting report may be harder to understand.
+--     the report will only be the one of the /first/ 'Error.Diagnose.Report.This' marker, and because the resulting report may be harder to understand.
 --
 --         This marker is output in red in an error report, and yellow in a warning report.
 --
---   - A 'Where' marker contains additional information/provides context to the error/warning report.
+--   - A 'Error.Diagnose.Report.Where' marker contains additional information/provides context to the error/warning report.
 --     For example, it may underline where a given variable @x@ is bound to emphasize it.
 --
 --         This marker is output in blue.
@@ -118,7 +121,8 @@ import Error.Diagnose.Style as Export
 --   and returns a 'Diagnostic') to insert a new report inside the diagnostic, or 'addFile' (which takes a 'Diagnostic', a 'FilePath' and a @['String']@,
 --   and returns a 'Diagnostic') to insert a new file reference in the diagnostic.
 --
---   You can then either pretty-print the diagnostic obtained (which requires all messages to be instances of the 'Text.PrettyPrint.ANSI.Leijen.Pretty')
+--   You can then either pretty-print the diagnostic obtained (which requires all messages to be instances of the 'Prettyprinter.Pretty')
+--   -- directly onto a file handle or as a plain 'Prettyprinter.Doc'ument --
 --   or export it to a lazy JSON 'Data.Bytestring.Lazy.ByteString' (e.g. in a LSP context).
 
 -- $diagnostic_pretty
@@ -157,6 +161,12 @@ import Error.Diagnose.Style as Export
 --     See the module "Error.Diagnose.Style" for how to define new styles.
 --
 --   - And finally the 'Diagnostic' to output.
+
+-- $diagnostic_to_doc
+--
+-- 'Diagnostic's can be “output” (at least ready to be rendered) to a 'Prettyprinter.Doc', which allows it to be easily added to other 'Prettyprinter.Doc' outputs.
+-- This makes it easy to customize the error messages further (though not the internal parts, only adding to it).
+-- As a 'Prettyprinter.Doc', there is also the possibility of altering internal annotations (styles) much easier (although this is already possible when printing the diagnostic).
 
 -- $diagnostic_json
 --

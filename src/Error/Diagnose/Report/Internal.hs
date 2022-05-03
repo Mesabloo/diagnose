@@ -10,7 +10,7 @@
 -- |
 -- Module      : Error.Diagnose.Report.Internal
 -- Description : Internal workings for report definitions and pretty printing.
--- Copyright   : (c) Mesabloo, 2021
+-- Copyright   : (c) Mesabloo, 2021-2022
 -- License     : BSD3
 -- Stability   : experimental
 -- Portability : Portable

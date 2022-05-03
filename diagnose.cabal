@@ -17,7 +17,7 @@ homepage:       https://github.com/mesabloo/diagnose#readme
 bug-reports:    https://github.com/mesabloo/diagnose/issues
 author:         Ghilain Bergeron
 maintainer:     Ghilain Bergeron
-copyright:      2021- Ghilain Bergeron
+copyright:      2021-2022 Ghilain Bergeron
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple

@@ -3,7 +3,7 @@ version: 1.9.0
 github: "mesabloo/diagnose"
 license: BSD3
 author: "Ghilain Bergeron"
-copyright: "2021- Ghilain Bergeron"
+copyright: "2021-2022 Ghilain Bergeron"
 category: "Error Reporting"
 
 dependencies:

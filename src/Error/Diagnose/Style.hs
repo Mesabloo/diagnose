@@ -1,7 +1,7 @@
 -- |
 -- Module      : Error.Diagnose.Style
 -- Description : Custom style definitions
--- Copyright   : (c) Mesabloo, 2021
+-- Copyright   : (c) Mesabloo, 2021-2022
 -- License     : BSD3
 -- Stability   : experimental
 -- Portability : Portable

@@ -7,7 +7,7 @@
 -- |
 -- Module      : Error.Diagnose.Compat.Parsec
 -- Description : Compatibility layer for parsec
--- Copyright   : (c) Mesabloo, 2021
+-- Copyright   : (c) Mesabloo, 2021-2022
 -- License     : BSD3
 -- Stability   : experimental
 -- Portability : Portable
