@@ -113,7 +113,7 @@ addFile ::
   Diagnostic msg ->
   -- | The path to the file.
   FilePath ->
-  -- | The content of the file as a single string, where lines are ended by @\n@.
+  -- | The content of the file as a single string, where lines are ended by @\\n@.
   String ->
   Diagnostic msg
 addFile (Diagnostic reports files) path content =

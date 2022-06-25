@@ -105,7 +105,7 @@ import Error.Diagnose.Style as Export
 --
 --         This marker is output in red in an error report, and yellow in a warning report.
 --
---   - A 'Error.Diagnose.Report.Where' marker contains additional information/provides context to the error/warning report.
+--   - A 'Error.Diagnose.Report.Where' marker contains additional information\/provides context to the error\/warning report.
 --     For example, it may underline where a given variable @x@ is bound to emphasize it.
 --
 --         This marker is output in blue.
