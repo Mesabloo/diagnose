@@ -25,9 +25,8 @@ module Error.Diagnose.Report.Internal where
 import Data.Aeson (ToJSON(..), object, (.=))
 #endif
 import Control.Applicative ((<|>))
-import Data.Array.IArray ((!))
 import qualified Data.Array.IArray as Array
-import Data.Array.Unboxed (IArray, Ix, UArray, listArray)
+import Data.Array.Unboxed (Array, IArray, Ix, UArray, listArray, (!))
 import Data.Bifunctor (bimap, first, second)
 import Data.Char.WCWidth (wcwidth)
 import Data.Default (def)
@@ -46,6 +45,8 @@ import Error.Diagnose.Position
 import Error.Diagnose.Style (Annotation (..))
 import Prettyprinter (Doc, Pretty (..), align, annotate, colon, hardline, lbracket, rbracket, space, width, (<+>))
 import Prettyprinter.Internal (Doc (..))
+
+type FileMap = HashMap FilePath (Array Int String)
 
 type WidthTable = UArray Int Int
 
@@ -158,7 +159,7 @@ err = Report True
 prettyReport ::
   Pretty msg =>
   -- | The content of the file the reports are for
-  HashMap FilePath [String] ->
+  FileMap ->
   -- | Should we print paths in unicode?
   Bool ->
   -- | The number of spaces each TAB character will span
@@ -315,7 +316,7 @@ groupMarkersPerFile markers =
 prettySubReport ::
   Pretty msg =>
   -- | The content of files in the diagnostics
-  HashMap FilePath [String] ->
+  FileMap ->
   -- | Is the output done with Unicode characters?
   Bool ->
   -- | Is the current report an error report?
@@ -372,7 +373,7 @@ splitMarkersPerLine (m@(Position {..}, _) : ms) =
 -- |
 prettyAllLines ::
   Pretty msg =>
-  HashMap FilePath [String] ->
+  FileMap ->
   Bool ->
   Bool ->
   -- | The number of spaces each TAB character will span
@@ -473,36 +474,37 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
 
 -- |
 getLine_ ::
-  HashMap FilePath [String] ->
+  FileMap ->
   [(Position, Marker msg)] ->
   Int ->
   Int ->
   Bool ->
   (WidthTable, Doc Annotation)
-getLine_ files markers line tabSize isError = case List.safeIndex (line - 1) =<< (HashMap.!?) files . file . fst =<< List.safeHead markers of
-  Nothing ->
-    ( mkWidthTable "",
-      annotate NoLineColor "<no line>"
-    )
-  Just code ->
-    ( mkWidthTable code,
-      flip foldMap (zip [1 ..] code) \(n, c) ->
-        let cdoc =
-              ifTab (pretty (replicate tabSize ' ')) pretty c
-            colorizingMarkers = flip filter markers \case
-              (Position (bl, bc) (el, ec) _, _)
-                | bl == el ->
-                  n >= bc && n < ec
-                | otherwise ->
-                  (bl == line && n >= bc)
-                    || (el == line && n < ec)
-                    || (bl < line && el > line)
-         in maybe
-              id
-              ((\m -> annotate (MarkerStyle $ markerColor isError m)) . snd)
-              (List.safeHead colorizingMarkers)
-              cdoc
-    )
+getLine_ files markers line tabSize isError =
+  case safeArrayIndex (line - 1) =<< (HashMap.!?) files . file . fst =<< List.safeHead markers of
+    Nothing ->
+      ( mkWidthTable "",
+        annotate NoLineColor "<no line>"
+      )
+    Just code ->
+      ( mkWidthTable code,
+        flip foldMap (zip [1 ..] code) \(n, c) ->
+          let cdoc =
+                ifTab (pretty (replicate tabSize ' ')) pretty c
+              colorizingMarkers = flip filter markers \case
+                (Position (bl, bc) (el, ec) _, _)
+                  | bl == el ->
+                    n >= bc && n < ec
+                  | otherwise ->
+                    (bl == line && n >= bc)
+                      || (el == line && n < ec)
+                      || (bl < line && el > line)
+           in maybe
+                id
+                ((\m -> annotate (MarkerStyle $ markerColor isError m)) . snd)
+                (List.safeHead colorizingMarkers)
+                cdoc
+      )
   where
     ifTab :: a -> (Char -> a) -> Char -> a
     ifTab a _ '\t' = a
