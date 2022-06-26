@@ -42,7 +42,7 @@ diagnosticFromBundle ::
   -- | The error message of the diagnostic
   msg ->
   -- | Default hints when trivial errors are reported
-  Maybe [msg] ->
+  Maybe [Note msg] ->
   -- | The bundle to create a diagnostic from
   MP.ParseErrorBundle s e ->
   Diagnostic msg
@@ -68,7 +68,7 @@ diagnosticFromBundle isError code msg (fromMaybe [] -> trivialHints) MP.ParseErr
           end = second (+ 1) start
        in Position start end sourceName
 
-    errorHints :: MP.ParseError s e -> [msg]
+    errorHints :: MP.ParseError s e -> [Note msg]
     errorHints MP.TrivialError {} = trivialHints
     errorHints (MP.FancyError _ errs) =
       Set.toList errs >>= \case
@@ -84,7 +84,7 @@ errorDiagnosticFromBundle ::
   -- | The error message of the diagnostic
   msg ->
   -- | Default hints when trivial errors are reported
-  Maybe [msg] ->
+  Maybe [Note msg] ->
   -- | The bundle to create a diagnostic from
   MP.ParseErrorBundle s e ->
   Diagnostic msg
@@ -99,7 +99,7 @@ warningDiagnosticFromBundle ::
   -- | The error message of the diagnostic
   msg ->
   -- | Default hints when trivial errors are reported
-  Maybe [msg] ->
+  Maybe [Note msg] ->
   -- | The bundle to create a diagnostic from
   MP.ParseErrorBundle s e ->
   Diagnostic msg

@@ -40,7 +40,7 @@ diagnosticFromParseError ::
   -- | The main error of the diagnostic
   msg ->
   -- | Default hints
-  Maybe [msg] ->
+  Maybe [Note msg] ->
   -- | The 'PE.ParseError' to transform into a 'Diagnostic'
   PE.ParseError ->
   Diagnostic msg
@@ -81,7 +81,7 @@ errorDiagnosticFromParseError ::
   -- | The main error message of the diagnostic
   msg ->
   -- | Default hints
-  Maybe [msg] ->
+  Maybe [Note msg] ->
   -- | The 'PE.ParseError' to convert
   PE.ParseError ->
   Diagnostic msg
@@ -96,7 +96,7 @@ warningDiagnosticFromParseError ::
   -- | The main error message of the diagnostic
   msg ->
   -- | Default hints
-  Maybe [msg] ->
+  Maybe [Note msg] ->
   -- | The 'PE.ParseError' to convert
   PE.ParseError ->
   Diagnostic msg

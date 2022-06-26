@@ -123,7 +123,7 @@ data Note msg
     Hint msg
 
 #ifdef USE_AESON
-instance ToJSON msg => ToJson (Note msg) where
+instance ToJSON msg => ToJSON (Note msg) where
   toJSON (Note msg) = object [ "note" .= msg ]
   toJSON (Hint msg) = object [ "hint" .= msg ]
 #endif
