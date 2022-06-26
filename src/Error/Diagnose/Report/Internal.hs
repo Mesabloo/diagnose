@@ -428,7 +428,7 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
 
     showMultiline _ [] = mempty
     showMultiline isLastMultiline multiline =
-      let colorOfLastMultilineMarker = markerColor isError . snd <$> List.safeLast multiline
+      let colorOfFirstMultilineMarker = markerColor isError . snd <$> List.safeHead multiline
           -- take the color of the last multiline marker in case we need to add additional bars
 
           prefix = hardline <+> dotPrefix leftLen withUnicode <> space
@@ -446,7 +446,7 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
           showMultilineMarkerMessages [] = []
           showMultilineMarkerMessages [m] = [showMultilineMarkerMessage m True]
           showMultilineMarkerMessages (m : ms) = showMultilineMarkerMessage m False : showMultilineMarkerMessages ms
-       in prefixWithBar colorOfLastMultilineMarker <> prefix <> fold (List.intersperse prefix $ showMultilineMarkerMessages $ reverse multiline)
+       in prefixWithBar colorOfFirstMultilineMarker <> prefix <> fold (List.intersperse prefix $ showMultilineMarkerMessages multiline)
 
 -- |
 getLine_ :: HashMap FilePath [String] -> [(Position, Marker msg)] -> Int -> Int -> Bool -> (IntMap.HashMap Int Int, Doc Annotation)
