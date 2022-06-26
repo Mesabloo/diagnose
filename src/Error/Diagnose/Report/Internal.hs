@@ -37,6 +37,7 @@ import qualified Data.HashMap.Lazy as IntMap
 import qualified Data.List as List
 import qualified Data.List.Safe as List
 import Data.Ord (Down (Down))
+import Data.String (IsString (fromString))
 import qualified Data.Text as Text
 import Error.Diagnose.Position
 import Error.Diagnose.Style (Annotation (..))
@@ -54,8 +55,8 @@ data Report msg
       -- ^ The message associated with the error.
       [(Position, Marker msg)]
       -- ^ A map associating positions with marker to show under the source code.
-      [msg]
-      -- ^ A list of hints to add at the end of the report.
+      [Note msg]
+      -- ^ A list of notes to add at the end of the report.
 
 instance Semigroup msg => Semigroup (Report msg) where
   Report isError1 code1 msg1 pos1 hints1 <> Report isError2 code2 msg2 pos2 hints2 =
@@ -114,6 +115,23 @@ instance Ord (Marker msg) where
   m1 <= m2 = m1 < m2 || m1 == m2
   {-# INLINEABLE (<=) #-}
 
+-- | A note is a piece of information that is found at the end of a report.
+data Note msg
+  = -- | A note, which is meant to give valuable information related to the encountered error.
+    Note msg
+  | -- | A hint, to propose potential fixes or help towards fixing the issue.
+    Hint msg
+
+#ifdef USE_AESON
+instance ToJSON msg => ToJson (Note msg) where
+  toJSON (Note msg) = object [ "note" .= msg ]
+  toJSON (Hint msg) = object [ "hint" .= msg ]
+#endif
+
+-- | Constructs a 'Note' from the given message as a literal string.
+instance IsString msg => IsString (Note msg) where
+  fromString = Note . fromString
+
 -- | Constructs a warning or an error report.
 warn,
   err ::
@@ -124,7 +142,7 @@ warn,
     -- | A list associating positions with markers.
     [(Position, Marker msg)] ->
     -- | A possibly mempty list of hints to add at the end of the report.
-    [msg] ->
+    [Note msg] ->
     Report msg
 warn = Report False
 {-# INLINE warn #-}
@@ -605,7 +623,7 @@ markerMessage (Maybe m) = m
 {-# INLINE markerMessage #-}
 
 -- | Pretty prints all hints.
-prettyAllHints :: Pretty msg => [msg] -> Int -> Bool -> Doc Annotation
+prettyAllHints :: Pretty msg => [Note msg] -> Int -> Bool -> Doc Annotation
 prettyAllHints [] _ _ = mempty
 prettyAllHints (h : hs) leftLen withUnicode =
   {-
@@ -613,5 +631,11 @@ prettyAllHints (h : hs) leftLen withUnicode =
         (1)         : Hint: <hint message>
   -}
   let prefix = hardline <+> pipePrefix leftLen withUnicode
-   in prefix <+> annotate HintColor ("Hint:" <+> replaceLinesWith (prefix <+> "      ") (pretty h))
+   in prefix <+> annotate HintColor (notePrefix h <+> replaceLinesWith (prefix <+> "      ") (pretty $ noteMessage h))
         <> prettyAllHints hs leftLen withUnicode
+  where
+    notePrefix (Note _) = "Note:"
+    notePrefix (Hint _) = "Hint:"
+
+    noteMessage (Note msg) = msg
+    noteMessage (Hint msg) = msg

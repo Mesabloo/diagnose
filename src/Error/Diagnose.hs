@@ -192,7 +192,7 @@ import Error.Diagnose.Style as Export
 --   >             }
 --   >         , message: string
 --   >         }[]
---   >     , hints: string[]
+--   >     , hints: ({ note: string } | { hint: string })[]
 --   >     }[]
 --   > }
 --

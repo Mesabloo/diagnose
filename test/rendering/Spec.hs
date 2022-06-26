@@ -8,15 +8,13 @@ import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
 import Error.Diagnose
   ( Marker (..),
+    Note (Hint),
     Position (..),
     Report,
     addFile,
     addReport,
     def,
     defaultStyle,
-#ifdef USE_AESON
-    diagnosticToJson,
-#endif
     err,
     printDiagnostic,
     stdout,
@@ -240,8 +238,8 @@ errorNoMarkersTwoHints =
     Nothing
     "Error with no markers and two hints"
     []
-    [ "First hint",
-      "Second hint"
+    [ "First note",
+      Hint "Second hint"
     ]
 
 errorSingleMultilineMarkerNoHints :: Report String

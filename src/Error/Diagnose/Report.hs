@@ -11,4 +11,4 @@ module Error.Diagnose.Report
   )
 where
 
-import Error.Diagnose.Report.Internal as Export (Marker (..), Report, err, warn)
+import Error.Diagnose.Report.Internal as Export (Marker (..), Note (..), Report, err, warn)

@@ -55,7 +55,7 @@ msg ->
 -- | A list of markers, along with the positions they span on
 [(Position, Marker msg)] ->
 -- | Some hints to be output at the bottom of the report
-[msg] ->
+[Note msg] ->
 -- | The created report
 Report msg
 ```
@@ -96,6 +96,7 @@ let beautifulExample =
           (Position (1, 8) (1, 9) "somefile.zc", Where "type 'a' is bound here without constraints")
         ]
         ["Adding 'Num(a)' to the list of constraints may solve this problem."]
+        -- ^^^^ This is a 'Note' not a 'Hint', as specified by its 'IsString' instance
 
 -- Create the diagnostic 
 let diagnostic  = addFile def "somefile.zc" "let id<a>(x : a) : a := x\n  + 1"

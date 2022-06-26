@@ -150,7 +150,7 @@ addReport (Diagnostic reports files) report =
 --   >             }
 --   >         , message: T
 --   >         }[]
---   >     , hints: T[]
+--   >     , hints: ({ note: T } | { hint: T })[]
 --   >     }[]
 --   > }
 --

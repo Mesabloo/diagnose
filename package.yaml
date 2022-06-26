@@ -1,5 +1,5 @@
 name: diagnose
-version: 2.0.1
+version: 2.1.0
 github: "mesabloo/diagnose"
 license: BSD3
 author: "Ghilain Bergeron"
@@ -15,6 +15,8 @@ dependencies:
 - data-default >= 0.7 && < 1
 - wcwidth >= 0.0.1 && <1
 - text >= 1.0.0.0 && <= 2.0
+# ^^^ This is unfortunately required, but as 'prettyprinter' already depends on it, it will already have been fetched
+# into the local cache anyway.
 
 default-extensions:
 - OverloadedStrings
