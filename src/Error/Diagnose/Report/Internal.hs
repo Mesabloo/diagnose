@@ -533,7 +533,7 @@ showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUn
                   pipesBeforeRendered = pipesBefore <&> second \marker -> annotate (markerColor isError marker) (if withUnicode then "│" else "|")
                   -- pre-render pipes which are before because they will be shown
 
-                  lastBeginPosition = snd . begin . fst <$> List.safeHead (List.sortOn (snd . begin . fst) pipesAfter)
+                  lastBeginPosition = snd . begin . fst <$> List.safeLast (List.sortOn (snd . begin . fst) pipesAfter)
 
                   lineLen = case lastBeginPosition of
                     Nothing -> 0
@@ -553,10 +553,10 @@ showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUn
                   pipesBeforeMessageStart = List.filter ((< bc') . snd . begin . fst) pipesAfter
                   -- consider pipes before, as well as pipes which came before the text rectangle bounds
                   pipesBeforeMessageRendered = (pipesBefore <> pipesBeforeMessageStart) <&> second \marker -> annotate (markerColor isError marker) (if withUnicode then "│" else "|")
-                  -- also pre-render pipes which are before the message text bounds, because they will be shown if the message is on
+               in -- also pre-render pipes which are before the message text bounds, because they will be shown if the message is on
                   -- multiple lines
 
-               in lineStart pipesBeforeRendered
+                  lineStart pipesBeforeRendered
                     <> annotate (markerColor isError msg) (currentPipe <> pretty (replicate lineLen lineChar) <> pointChar)
                     <+> annotate (markerColor isError msg) (replaceLinesWith (hardline <+> lineStart pipesBeforeMessageRendered <+> if List.null pipesBeforeMessageStart then "  " else " ") $ pretty $ markerMessage msg)
          in hardline <+> prefix <> showMessages specialPrefix pipes lineLen
