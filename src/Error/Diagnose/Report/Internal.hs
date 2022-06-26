@@ -25,6 +25,9 @@ module Error.Diagnose.Report.Internal where
 import Data.Aeson (ToJSON(..), object, (.=))
 #endif
 import Control.Applicative ((<|>))
+import Data.Array.IArray ((!))
+import qualified Data.Array.IArray as Array
+import Data.Array.Unboxed (IArray, Ix, UArray, listArray)
 import Data.Bifunctor (bimap, first, second)
 import Data.Char.WCWidth (wcwidth)
 import Data.Default (def)
@@ -33,9 +36,9 @@ import Data.Function (on)
 import Data.Functor ((<&>))
 import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
-import qualified Data.HashMap.Lazy as IntMap
 import qualified Data.List as List
 import qualified Data.List.Safe as List
+import Data.Maybe
 import Data.Ord (Down (Down))
 import Data.String (IsString (fromString))
 import qualified Data.Text as Text
@@ -43,6 +46,8 @@ import Error.Diagnose.Position
 import Error.Diagnose.Style (Annotation (..))
 import Prettyprinter (Doc, Pretty (..), align, annotate, colon, hardline, lbracket, rbracket, space, width, (<+>))
 import Prettyprinter.Internal (Doc (..))
+
+type WidthTable = UArray Int Int
 
 -- | The type of diagnostic reports with abstract message type.
 data Report msg
@@ -467,34 +472,47 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
        in prefixWithBar colorOfFirstMultilineMarker <> prefix <> fold (List.intersperse prefix $ showMultilineMarkerMessages multiline)
 
 -- |
-getLine_ :: HashMap FilePath [String] -> [(Position, Marker msg)] -> Int -> Int -> Bool -> (IntMap.HashMap Int Int, Doc Annotation)
+getLine_ ::
+  HashMap FilePath [String] ->
+  [(Position, Marker msg)] ->
+  Int ->
+  Int ->
+  Bool ->
+  (WidthTable, Doc Annotation)
 getLine_ files markers line tabSize isError = case List.safeIndex (line - 1) =<< (HashMap.!?) files . file . fst =<< List.safeHead markers of
-  Nothing -> (mempty, annotate NoLineColor "<no line>")
+  Nothing ->
+    ( mkWidthTable "",
+      annotate NoLineColor "<no line>"
+    )
   Just code ->
-    let (tabs, code') = indexedWithTabsReplaced code
-     in ( tabs,
-          fold $
-            code' <&> \(n, c) ->
-              let colorizingMarkers = flip
-                    filter
-                    markers
-                    \(Position (bl, bc) (el, ec) _, _) ->
-                      if bl == el
-                        then n >= bc && n < ec
-                        else (bl == line && n >= bc) || (el == line && n < ec) || (bl < line && el > line)
-               in maybe id ((\m -> annotate (MarkerStyle $ markerColor isError m)) . snd) (List.safeHead colorizingMarkers) (pretty c)
-        )
+    ( mkWidthTable code,
+      flip foldMap (zip [1 ..] code) \(n, c) ->
+        let cdoc =
+              ifTab (pretty (replicate tabSize ' ')) pretty c
+            colorizingMarkers = flip filter markers \case
+              (Position (bl, bc) (el, ec) _, _)
+                | bl == el ->
+                  n >= bc && n < ec
+                | otherwise ->
+                  (bl == line && n >= bc)
+                    || (el == line && n < ec)
+                    || (bl < line && el > line)
+         in maybe
+              id
+              ((\m -> annotate (MarkerStyle $ markerColor isError m)) . snd)
+              (List.safeHead colorizingMarkers)
+              cdoc
+    )
   where
-    indexedWithTabsReplaced :: String -> (IntMap.HashMap Int Int, [(Int, Char)])
-    indexedWithTabsReplaced = goIndexed 1
+    ifTab :: a -> (Char -> a) -> Char -> a
+    ifTab a _ '\t' = a
+    ifTab _ f c = f c
 
-    goIndexed :: Int -> String -> (IntMap.HashMap Int Int, [(Int, Char)])
-    goIndexed _ [] = (mempty, [])
-    goIndexed n ('\t' : xs) = bimap (IntMap.insert n tabSize) (replicate tabSize (n, ' ') <>) (goIndexed (n + 1) xs)
-    goIndexed n (x : xs) = bimap (IntMap.insert n (wcwidth x)) ((n, x) :) (goIndexed (n + 1) xs)
+    mkWidthTable :: String -> WidthTable
+    mkWidthTable s = listArray (1, length s) (ifTab tabSize wcwidth <$> s)
 
 -- |
-showAllMarkersInLine :: Pretty msg => Bool -> Bool -> (Doc Annotation -> Doc Annotation) -> Bool -> Bool -> Int -> IntMap.HashMap Int Int -> [(Position, Marker msg)] -> Doc Annotation
+showAllMarkersInLine :: Pretty msg => Bool -> Bool -> (Doc Annotation -> Doc Annotation) -> Bool -> Bool -> Int -> WidthTable -> [(Position, Marker msg)] -> Doc Annotation
 showAllMarkersInLine _ _ _ _ _ _ _ [] = mempty
 showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUnicode isError leftLen widths ms =
   let maxMarkerColumn = snd $ end $ fst $ List.last $ List.sortOn (snd . end . fst) ms
@@ -505,19 +523,23 @@ showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUn
    in -- get the maximum end column, so that we know when to stop looking for other markers on the same line
       hardline <+> dotPrefix leftLen withUnicode <+> (if List.null ms then mempty else specialPrefix <> showMarkers 1 maxMarkerColumn <> showMessages specialPrefix ms maxMarkerColumn)
   where
+    widthAt i = 0 `fromMaybe` safeArrayIndex i widths
+    widthsBetween start end =
+      sum $ take (end - start) $ drop (start - 1) $ Array.elems widths
+
     showMarkers n lineLen
       | n > lineLen = mempty -- reached the end of the line
       | otherwise =
         let allMarkers = flip filter ms \(Position (_, bc) (_, ec) _, _) -> n >= bc && n < ec
          in -- only consider markers which span onto the current column
             case allMarkers of
-              [] -> fold (replicate (IntMap.lookupDefault 0 n widths) space) <> showMarkers (n + 1) lineLen
+              [] -> fold (replicate (widthAt n) space) <> showMarkers (n + 1) lineLen
               (Position {..}, marker) : _ ->
                 annotate
                   (markerColor isError marker)
                   ( if snd begin == n
-                      then (if withUnicode then "┬" else "^") <> fold (replicate (IntMap.lookupDefault 0 n widths - 1) if withUnicode then "─" else "-")
-                      else fold (replicate (IntMap.lookupDefault 0 n widths) if withUnicode then "─" else "-")
+                      then (if withUnicode then "┬" else "^") <> fold (replicate (widthAt n - 1) if withUnicode then "─" else "-")
+                      else fold (replicate (widthAt n) if withUnicode then "─" else "-")
                   )
                   <> showMarkers (n + 1) lineLen
 
@@ -532,15 +554,15 @@ showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUn
             allColumns _ [] = (1, [])
             allColumns n ms@((Position (_, bc) _ _, col) : ms')
               | n == bc = bimap (+ 1) (col :) (allColumns (n + 1) ms')
-              | n < bc = bimap (+ 1) (replicate (IntMap.lookupDefault 0 n widths) space <>) (allColumns (n + 1) ms)
-              | otherwise = bimap (+ 1) (replicate (IntMap.lookupDefault 0 n widths) space <>) (allColumns (n + 1) ms')
+              | n < bc = bimap (+ 1) (replicate (widthAt n) space <>) (allColumns (n + 1) ms)
+              | otherwise = bimap (+ 1) (replicate (widthAt n) space <>) (allColumns (n + 1) ms')
             -- transform the list of remaining markers into a single document line
 
             hasSuccessor = length filteredPipes /= length pipes
 
             lineStart pipes =
               let (n, docs) = allColumns 1 $ List.sortOn (snd . begin . fst) pipes
-                  numberOfSpaces = sum [IntMap.lookupDefault 0 x widths | x <- [n .. bc - 1]] -- bc - n
+                  numberOfSpaces = widthsBetween n bc
                in dotPrefix leftLen withUnicode <+> specialPrefix <> fold docs <> pretty (replicate numberOfSpaces ' ')
             -- the start of the line contains the "dot"-prefix as well as all the pipes for all the still not rendered marker messages
 
@@ -555,7 +577,7 @@ showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUn
 
                   lineLen = case lastBeginPosition of
                     Nothing -> 0
-                    Just col -> sum [IntMap.lookupDefault 0 x widths | x <- [bc .. col - 1]]
+                    Just col -> widthsBetween bc col
 
                   currentPipe =
                     if
@@ -639,3 +661,8 @@ prettyAllHints (h : hs) leftLen withUnicode =
 
     noteMessage (Note msg) = msg
     noteMessage (Hint msg) = msg
+
+safeArrayIndex :: (Ix i, IArray a e) => i -> a i e -> Maybe e
+safeArrayIndex i a
+  | Array.inRange (Array.bounds a) i = Just (a ! i)
+  | otherwise = Nothing
