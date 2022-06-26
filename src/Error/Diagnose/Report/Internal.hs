@@ -37,6 +37,7 @@ import qualified Data.HashMap.Lazy as IntMap
 import qualified Data.List as List
 import qualified Data.List.Safe as List
 import Data.Ord (Down (Down))
+import qualified Data.Text as Text
 import Error.Diagnose.Position
 import Error.Diagnose.Style (Annotation (..))
 import Prettyprinter (Doc, Pretty (..), align, annotate, colon, hardline, lbracket, rbracket, space, width, (<+>))
@@ -547,9 +548,17 @@ showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUn
 
                   lineChar = if withUnicode then '─' else '-'
                   pointChar = if withUnicode then "╸" else "-"
+
+                  bc' = bc + lineLen + 2
+                  pipesBeforeMessageStart = List.filter ((< bc') . snd . begin . fst) pipesAfter
+                  -- consider pipes before, as well as pipes which came before the text rectangle bounds
+                  pipesBeforeMessageRendered = (pipesBefore <> pipesBeforeMessageStart) <&> second \marker -> annotate (markerColor isError marker) (if withUnicode then "│" else "|")
+                  -- also pre-render pipes which are before the message text bounds, because they will be shown if the message is on
+                  -- multiple lines
+
                in lineStart pipesBeforeRendered
                     <> annotate (markerColor isError msg) (currentPipe <> pretty (replicate lineLen lineChar) <> pointChar)
-                    <+> annotate (markerColor isError msg) (replaceLinesWith (hardline <+> lineStart pipesBeforeRendered <+> "  ") $ pretty $ markerMessage msg)
+                    <+> annotate (markerColor isError msg) (replaceLinesWith (hardline <+> lineStart pipesBeforeMessageRendered <+> if List.null pipesBeforeMessageStart then "  " else " ") $ pretty $ markerMessage msg)
          in hardline <+> prefix <> showMessages specialPrefix pipes lineLen
 
 -- WARN: uses the internal of the library
@@ -562,7 +571,9 @@ replaceLinesWith repl Line = repl
 replaceLinesWith _ Fail = Fail
 replaceLinesWith _ Empty = Empty
 replaceLinesWith _ (Char c) = Char c
-replaceLinesWith _ (Text n s) = Text n s
+replaceLinesWith repl (Text n s) =
+  let lines = Text.split (== '\n') s <&> \txt -> Text (Text.length txt) txt
+   in mconcat (List.intersperse repl lines)
 replaceLinesWith repl (FlatAlt f d) = FlatAlt (replaceLinesWith repl f) (replaceLinesWith repl d)
 replaceLinesWith repl (Cat c d) = Cat (replaceLinesWith repl c) (replaceLinesWith repl d)
 replaceLinesWith repl (Nest n d) = Nest n (replaceLinesWith repl d)

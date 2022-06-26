@@ -71,6 +71,8 @@ main = do
           errorMultilineMarkerNotAtEnd,
           errorWithLineGap,
           repro3,
+          errorWithMultilineMarkerMessage,
+          errorWithMultilineMarkerMessage',
           beautifulExample
         ]
 
@@ -391,6 +393,27 @@ errorWithLineGap =
     "Error with line gaps between two markers"
     [ (Position (1, 1) (1, 3) "gaps.txt", Where "is a first marker"),
       (Position (5, 2) (5, 4) "gaps.txt", This "is the main marker")
+    ]
+    []
+
+errorWithMultilineMarkerMessage :: Report String
+errorWithMultilineMarkerMessage =
+  err
+    Nothing
+    "Error with multiline message in first marker"
+    [ (Position (1, 5) (1, 10) "test.zc", This "First\nmarker"),
+      (Position (1, 15) (1, 22) "test.zc", Where "Second")
+    ]
+    []
+
+errorWithMultilineMarkerMessage' :: Report String
+errorWithMultilineMarkerMessage' =
+  err
+    Nothing
+    "Error with multiline message in first marker"
+    [ (Position (1, 5) (1, 10) "test.zc", This "First\nmarker"),
+      (Position (1, 15) (1, 22) "test.zc", Where "Second"),
+      (Position (1, 10) (1, 15) "test.zc", Maybe "Third")
     ]
     []
 

@@ -14,6 +14,7 @@ dependencies:
 - hashable >= 1.3 && < 2
 - data-default >= 0.7 && < 1
 - wcwidth >= 0.0.1 && <1
+- text >= 1.0.0.0 && <= 2.0
 
 default-extensions:
 - OverloadedStrings
