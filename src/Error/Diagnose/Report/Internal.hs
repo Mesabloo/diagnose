@@ -571,7 +571,7 @@ replaceLinesWith repl Line = repl
 replaceLinesWith _ Fail = Fail
 replaceLinesWith _ Empty = Empty
 replaceLinesWith _ (Char c) = Char c
-replaceLinesWith repl (Text n s) =
+replaceLinesWith repl (Text _ s) =
   let lines = Text.split (== '\n') s <&> \txt -> Text (Text.length txt) txt
    in mconcat (List.intersperse repl lines)
 replaceLinesWith repl (FlatAlt f d) = FlatAlt (replaceLinesWith repl f) (replaceLinesWith repl d)
