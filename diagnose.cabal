@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.6.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 
@@ -67,6 +67,7 @@ library
   build-depends:
       base >=4.7 && <5
     , data-default >=0.7 && <1
+    , dlist ==1.0.*
     , hashable >=1.3 && <2
     , prettyprinter >=1.7.0 && <2
     , prettyprinter-ansi-terminal >=1.1.0 && <2
@@ -111,6 +112,7 @@ test-suite diagnose-megaparsec-tests
       base >=4.7 && <5
     , data-default >=0.7 && <1
     , diagnose
+    , dlist ==1.0.*
     , hashable >=1.3 && <2
     , prettyprinter >=1.7.0 && <2
     , prettyprinter-ansi-terminal >=1.1.0 && <2
@@ -150,6 +152,7 @@ test-suite diagnose-parsec-tests
       base >=4.7 && <5
     , data-default >=0.7 && <1
     , diagnose
+    , dlist ==1.0.*
     , hashable >=1.3 && <2
     , prettyprinter >=1.7.0 && <2
     , prettyprinter-ansi-terminal >=1.1.0 && <2
@@ -188,6 +191,7 @@ test-suite diagnose-rendering-tests
       base >=4.7 && <5
     , data-default >=0.7 && <1
     , diagnose
+    , dlist ==1.0.*
     , hashable >=1.3 && <2
     , prettyprinter >=1.7.0 && <2
     , prettyprinter-ansi-terminal >=1.1.0 && <2

@@ -20,8 +20,11 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson (ToJSON(..), encode, object, (.=))
 import Data.ByteString.Lazy (ByteString)
 #endif
+
+import Data.DList (DList)
+import qualified Data.DList as DL
 import Data.Default (Default, def)
-import Data.Foldable (fold)
+import Data.Foldable (fold, toList)
 import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
 import Data.List (intersperse)
@@ -38,7 +41,7 @@ import System.IO (Handle)
 --   to create a new empty diagnostic, and 'addFile' and 'addReport' to alter its internal state.
 data Diagnostic msg
   = Diagnostic
-      [Report msg]
+      (DList (Report msg))
       -- ^ All the reports contained in a diagnostic.
       --
       --   Reports are output one by one, without connections in between.
@@ -85,7 +88,7 @@ prettyDiagnostic ::
   Diagnostic msg ->
   Doc Annotation
 prettyDiagnostic withUnicode tabSize (Diagnostic reports file) =
-  fold . intersperse hardline $ prettyReport file withUnicode tabSize <$> reports
+  fold . intersperse hardline $ prettyReport file withUnicode tabSize <$> toList reports
 {-# INLINE prettyDiagnostic #-}
 
 -- | Prints a 'Diagnostic' onto a specific 'Handle'.
@@ -127,7 +130,7 @@ addReport ::
   Report msg ->
   Diagnostic msg
 addReport (Diagnostic reports files) report =
-  Diagnostic (reports <> [report]) files
+  Diagnostic (reports `DL.snoc` report) files
 {-# INLINE addReport #-}
 
 #ifdef USE_AESON
