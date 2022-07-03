@@ -20,13 +20,16 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson (ToJSON(..), encode, object, (.=))
 import Data.ByteString.Lazy (ByteString)
 #endif
+
+import Data.Array (listArray)
+import Data.DList (DList)
+import qualified Data.DList as DL
 import Data.Default (Default, def)
-import Data.Foldable (fold)
-import Data.HashMap.Lazy (HashMap)
+import Data.Foldable (fold, toList)
 import qualified Data.HashMap.Lazy as HashMap
 import Data.List (intersperse)
 import Error.Diagnose.Report (Report)
-import Error.Diagnose.Report.Internal (prettyReport)
+import Error.Diagnose.Report.Internal (FileMap, prettyReport)
 import Error.Diagnose.Style (Annotation, Style)
 import Prettyprinter (Doc, Pretty, hardline, unAnnotate)
 import Prettyprinter.Render.Terminal (hPutDoc)
@@ -38,11 +41,11 @@ import System.IO (Handle)
 --   to create a new empty diagnostic, and 'addFile' and 'addReport' to alter its internal state.
 data Diagnostic msg
   = Diagnostic
-      [Report msg]
+      (DList (Report msg))
       -- ^ All the reports contained in a diagnostic.
       --
       --   Reports are output one by one, without connections in between.
-      (HashMap FilePath [String])
+      !FileMap
       -- ^ A map associating files with their content as lists of lines.
 
 instance Default (Diagnostic msg) where
@@ -54,7 +57,7 @@ instance Semigroup (Diagnostic msg) where
 #ifdef USE_AESON
 instance ToJSON msg => ToJSON (Diagnostic msg) where
   toJSON (Diagnostic reports files) =
-    object [ "files" .= fmap toJSONFile (HashMap.toList files)
+    object [ "files" .= fmap toJSONFile (fmap toList <$> (HashMap.toList files))
            , "reports" .= reports
            ]
     where
@@ -85,7 +88,7 @@ prettyDiagnostic ::
   Diagnostic msg ->
   Doc Annotation
 prettyDiagnostic withUnicode tabSize (Diagnostic reports file) =
-  fold . intersperse hardline $ prettyReport file withUnicode tabSize <$> reports
+  fold . intersperse hardline $ prettyReport file withUnicode tabSize <$> toList reports
 {-# INLINE prettyDiagnostic #-}
 
 -- | Prints a 'Diagnostic' onto a specific 'Handle'.
@@ -117,7 +120,10 @@ addFile ::
   String ->
   Diagnostic msg
 addFile (Diagnostic reports files) path content =
-  Diagnostic reports (HashMap.insert path (lines content) files)
+  let fileLines = lines content
+      lineCount = length fileLines
+      lineArray = listArray (0, lineCount - 1) fileLines
+   in Diagnostic reports (HashMap.insert path lineArray files)
 {-# INLINE addFile #-}
 
 -- | Inserts a new report into a diagnostic.
@@ -127,7 +133,7 @@ addReport ::
   Report msg ->
   Diagnostic msg
 addReport (Diagnostic reports files) report =
-  Diagnostic (reports <> [report]) files
+  Diagnostic (reports `DL.snoc` report) files
 {-# INLINE addReport #-}
 
 #ifdef USE_AESON
