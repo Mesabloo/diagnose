@@ -66,11 +66,12 @@ diagnosticFromParseError isError code msg (fromMaybe [] -> defaultHints) error =
           putTogether (PE.Message thing : ms) = let (a, b, c, d) = putTogether ms in (a, b, c, thing : d)
 
           (nub -> sysUnexpectedList, nub -> unexpectedList, nub -> expectedList, nub -> messages) = putTogether msgs
-       in [ (source, marker) | unexpected <- if null unexpectedList then sysUnexpectedList else unexpectedList, let marker = This $ fromString $ "unexpected " <> unexpected
-          ]
-            <> [ (source, marker) | msg <- messages, let marker = This $ fromString msg
-               ]
-            <> [(source, Where $ fromString $ "expecting any of " <> intercalate ", " (filter (not . null) expectedList))]
+
+          firstSysUnexpectedMessage = head sysUnexpectedList
+          unexpectedMessage = "unexpected " <> if null unexpectedList then if null firstSysUnexpectedMessage then "end of line" else firstSysUnexpectedMessage else intercalate ", " (filter (not . null) unexpectedList)
+       in [ (source, This $ fromString unexpectedMessage) ]
+            <> [ (source, This $ fromString msg) | msg <- messages ]
+            <> [ (source, Where $ fromString $ "expecting any of " <> intercalate ", " (filter (not . null) expectedList)) ]
 
 -- | Generates an error diagnostic from a 'PE.ParseError'.
 errorDiagnosticFromParseError ::
