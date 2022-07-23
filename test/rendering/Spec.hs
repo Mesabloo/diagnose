@@ -71,6 +71,7 @@ main = do
           repro3,
           errorWithMultilineMarkerMessage,
           errorWithMultilineMarkerMessage',
+          errorWithSingleBlankMarker,
           beautifulExample
         ]
 
@@ -425,4 +426,12 @@ repro3 =
       (Position (24, 21) (24, 26) "repro3.file", Where "This is the template being used"),
       (Position (24, 7) (24, 15) "repro3.file", Where "while checking this static layer")
     ]
+    []
+
+errorWithSingleBlankMarker :: Report String
+errorWithSingleBlankMarker =
+  err
+    Nothing
+    "Error with a single blank marker"
+    [(Position (1, 5) (1, 10) "test.zc", Blank)]
     []

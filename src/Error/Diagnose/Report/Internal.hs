@@ -103,11 +103,14 @@ data Marker msg
     Where msg
   | -- | A magenta marker to report potential fixes.
     Maybe msg
+  | -- | An empty marker, whose sole purpose is to include a line of code in the report without markers under.
+    Blank
 
 instance Eq (Marker msg) where
   This _ == This _ = True
   Where _ == Where _ = True
   Maybe _ == Maybe _ = True
+  Blank == Blank = True
   _ == _ = False
   {-# INLINEABLE (==) #-}
 
@@ -116,6 +119,8 @@ instance Ord (Marker msg) where
   Where _ < This _ = True
   Where _ < _ = False
   Maybe _ < _ = True
+  _ < Blank = True
+  Blank < _ = False
   {-# INLINEABLE (<) #-}
 
   m1 <= m2 = m1 < m2 || m1 == m2
@@ -439,14 +444,16 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
                     <> annotate (markerColor isError marker) (if withUnicode then "┤" else ">")
                     <> space
 
-          allMarkersInLine = {- List.sortOn fst $ -} allInlineMarkersInLine <> allMultilineMarkersInLine
+          -- we need to remove all blank markers because they are irrelevant to the display
+          allInlineMarkersInLine' = filter ((/=) Blank . snd) allInlineMarkersInLine
+          allMultilineMarkersSpanningLine' = filter ((/=) Blank . snd) allMultilineMarkersSpanningLine
 
-          (widths, renderedCode) = getLine_ files (allMarkersInLine <> allMultilineMarkersSpanningLine) line tabSize isError
+          (widths, renderedCode) = getLine_ files (allInlineMarkersInLine <> allMultilineMarkersInLine <> allMultilineMarkersSpanningLine') line tabSize isError
        in ( otherMultilines,
             hardline
               <> {- (1) -} linePrefix leftLen line withUnicode <+> additionalPrefix
               <> renderedCode
-              <> {- (2) -} showAllMarkersInLine (not $ null multiline) inSpanOfMultiline colorOfFirstMultilineMarker withUnicode isError leftLen widths allInlineMarkersInLine
+              <> {- (2) -} showAllMarkersInLine (not $ null multiline) inSpanOfMultiline colorOfFirstMultilineMarker withUnicode isError leftLen widths allInlineMarkersInLine'
               <> showMultiline (isLastLine || List.safeLast multilineEndingOnLine == List.safeLast multiline) multilineEndingOnLine
           )
 
@@ -459,6 +466,7 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
 
           prefixWithBar color = prefix <> maybe id annotate color (if withUnicode then "│ " else "| ")
 
+          showMultilineMarkerMessage (_, Blank) _ = mempty
           showMultilineMarkerMessage (_, marker) isLast =
             annotate (markerColor isError marker) $
               ( if isLast && isLastMultiline
@@ -489,8 +497,7 @@ getLine_ files markers line tabSize isError =
     Just code ->
       ( mkWidthTable code,
         flip foldMap (zip [1 ..] code) \(n, c) ->
-          let cdoc =
-                ifTab (pretty (replicate tabSize ' ')) pretty c
+          let cdoc = ifTab (pretty (replicate tabSize ' ')) pretty c
               colorizingMarkers = flip filter markers \case
                 (Position (bl, bc) (el, ec) _, _)
                   | bl == el ->
@@ -500,7 +507,7 @@ getLine_ files markers line tabSize isError =
                       || (el == line && n < ec)
                       || (bl < line && el > line)
            in maybe
-                id
+                (annotate CodeStyle)
                 ((\m -> annotate (MarkerStyle $ markerColor isError m)) . snd)
                 (List.safeHead colorizingMarkers)
                 cdoc
@@ -532,7 +539,7 @@ showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUn
     showMarkers n lineLen
       | n > lineLen = mempty -- reached the end of the line
       | otherwise =
-        let allMarkers = flip filter ms \(Position (_, bc) (_, ec) _, _) -> n >= bc && n < ec
+        let allMarkers = flip filter ms \(Position (_, bc) (_, ec) _, mark) -> mark /= Blank && n >= bc && n < ec
          in -- only consider markers which span onto the current column
             case allMarkers of
               [] -> fold (replicate (widthAt n) space) <> showMarkers (n + 1) lineLen
@@ -548,7 +555,7 @@ showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUn
     showMessages specialPrefix ms lineLen = case List.safeUncons ms of
       Nothing -> mempty -- no more messages to show
       Just ((Position b@(_, bc) _ _, msg), pipes) ->
-        let filteredPipes = filter ((/= b) . begin . fst) pipes
+        let filteredPipes = filter (uncurry (&&) . bimap ((/= b) . begin) (/= Blank)) pipes
             -- record only the pipes corresponding to markers on different starting positions
             nubbedPipes = List.nubBy ((==) `on` (begin . fst)) filteredPipes
             -- and then remove all duplicates
@@ -637,6 +644,7 @@ markerColor ::
 markerColor isError (This _) = ThisColor isError
 markerColor _ (Where _) = WhereColor
 markerColor _ (Maybe _) = MaybeColor
+markerColor _ Blank = CodeStyle -- we take the same color as the code, for it to be invisible
 {-# INLINE markerColor #-}
 
 -- | Retrieves the message held by a marker.
@@ -644,6 +652,7 @@ markerMessage :: Marker msg -> msg
 markerMessage (This m) = m
 markerMessage (Where m) = m
 markerMessage (Maybe m) = m
+markerMessage Blank = undefined
 {-# INLINE markerMessage #-}
 
 -- | Pretty prints all hints.

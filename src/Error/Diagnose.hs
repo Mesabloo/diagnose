@@ -113,6 +113,10 @@ import Error.Diagnose.Style as Export
 --   - A 'Error.Diagnose.Report.Maybe' marker may contain possible fixes (if the text is short, else hints are recommended for this use).
 --
 --         This marker is output in magenta.
+--
+--   - A 'Error.Diagnose.Report.Blank' marker is useful only to output additional lines of code in the report.
+--
+--         This marker is not output and has no color.
 
 -- $create_diagnostic
 --

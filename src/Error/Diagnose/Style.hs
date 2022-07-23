@@ -68,6 +68,8 @@ data Annotation
     --   already processed color annotation.
     MarkerStyle
       Annotation
+  | -- | The color of the code when no marker is present.
+    CodeStyle
 
 -- | A style is a function which can be applied using 'reAnnotate'.
 --
@@ -87,6 +89,7 @@ type Style = Doc Annotation -> Doc AnsiStyle
 --   * The left rules are colored in bold black
 --   * File names are output in dull green
 --   * The @[error]@/@[warning]@ at the top is colored in red for errors and yellow for warnings
+--   * The code is output in normal white
 defaultStyle :: Style
 defaultStyle = reAnnotate style
   where
@@ -99,4 +102,9 @@ defaultStyle = reAnnotate style
       RuleColor -> bold <> color Black
       KindColor isError -> bold <> style (ThisColor isError)
       NoLineColor -> bold <> colorDull Magenta
-      MarkerStyle st -> bold <> style st
+      MarkerStyle st ->
+        let ann = style st
+         in if ann == style CodeStyle
+              then ann
+              else bold <> ann
+      CodeStyle -> color White
