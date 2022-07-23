@@ -72,6 +72,7 @@ main = do
           errorWithMultilineMarkerMessage,
           errorWithMultilineMarkerMessage',
           errorWithSingleBlankMarker,
+          errorWithBlankAndNormalMarkerInLine,
           beautifulExample
         ]
 
@@ -434,4 +435,12 @@ errorWithSingleBlankMarker =
     Nothing
     "Error with a single blank marker"
     [(Position (1, 5) (1, 10) "test.zc", Blank)]
+    []
+
+errorWithBlankAndNormalMarkerInLine :: Report String
+errorWithBlankAndNormalMarkerInLine =
+  err
+    Nothing
+    "Error with a single blank marker"
+    [(Position (1, 5) (1, 10) "test.zc", Blank), (Position (1, 15) (1, 22) "test.zc", This "After a blank")]
     []
