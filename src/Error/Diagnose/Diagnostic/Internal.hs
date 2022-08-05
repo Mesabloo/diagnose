@@ -69,8 +69,8 @@ instance ToJSON msg => ToJSON (Diagnostic msg) where
 
 -- | Checks whether the given diagnostic has any report or not (if it is effectively empty).
 hasReports :: Diagnostic msg -> Bool
-hasReports (Diagnostic DL.Nil _) = True
-hasReports _ = False
+hasReports (Diagnostic DL.Nil _) = False
+hasReports _ = True
 
 -- | Transforms every warning report in this diagnostic into an error report.
 warningsToErrors :: Diagnostic msg -> Diagnostic msg
