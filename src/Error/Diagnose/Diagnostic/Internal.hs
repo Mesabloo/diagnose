@@ -29,7 +29,7 @@ import Data.Foldable (fold, toList)
 import qualified Data.HashMap.Lazy as HashMap
 import Data.List (intersperse)
 import Error.Diagnose.Report (Report)
-import Error.Diagnose.Report.Internal (FileMap, prettyReport)
+import Error.Diagnose.Report.Internal (FileMap, errorToWarning, prettyReport, warningToError)
 import Error.Diagnose.Style (Annotation, Style)
 import Prettyprinter (Doc, Pretty, hardline, unAnnotate)
 import Prettyprinter.Render.Terminal (hPutDoc)
@@ -66,6 +66,19 @@ instance ToJSON msg => ToJSON (Diagnostic msg) where
                , "content" .= content
                ]
 #endif
+
+-- | Checks whether the given diagnostic has any report or not (if it is effectively empty).
+hasReports :: Diagnostic msg -> Bool
+hasReports (Diagnostic DL.Nil _) = True
+hasReports _ = False
+
+-- | Transforms every warning report in this diagnostic into an error report.
+warningsToErrors :: Diagnostic msg -> Diagnostic msg
+warningsToErrors (Diagnostic reports files) = Diagnostic (warningToError <$> reports) files
+
+-- | Transforms every error report in this diagnostic into a warning report.
+errorsToWarnings :: Diagnostic msg -> Diagnostic msg
+errorsToWarnings (Diagnostic reports files) = Diagnostic (errorToWarning <$> reports) files
 
 -- | Pretty prints a 'Diagnostic' into a 'Doc'ument that can be output using 'hPutDoc'.
 --

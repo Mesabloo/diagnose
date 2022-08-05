@@ -160,6 +160,16 @@ warn = Report False
 err = Report True
 {-# INLINE err #-}
 
+-- | Transforms a warning report into an error report.
+warningToError :: Report msg -> Report msg
+warningToError (Report False code msg markers notes) = Report True code msg markers notes
+warningToError r@(Report True _ _ _ _) = r
+
+-- | Transforms an error report into a warning report.
+errorToWarning :: Report msg -> Report msg
+errorToWarning (Report True code msg markers notes) = Report False code msg markers notes
+errorToWarning r@(Report False _ _ _ _) = r
+
 -- | Pretty prints a report to a 'Doc' handling colors.
 prettyReport ::
   Pretty msg =>
