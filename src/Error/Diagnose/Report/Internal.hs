@@ -4,8 +4,9 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# OPTIONS -Wno-name-shadowing #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# OPTIONS -Wno-name-shadowing #-}
 
 -- |
 -- Module      : Error.Diagnose.Report.Internal
@@ -19,7 +20,17 @@
 --            It is also highly undocumented.
 --
 --            Please limit yourself to the "Error.Diagnose.Report" module, which exports some of the useful functions defined here.
-module Error.Diagnose.Report.Internal where
+module Error.Diagnose.Report.Internal
+  ( Marker (..)
+  , Note (..)
+  , Report(.., Warn, Err)
+  , err
+  , errorToWarning
+  , warn
+  , warningToError
+  , FileMap
+  , prettyReport
+  ) where
 
 #ifdef USE_AESON
 import Data.Aeson (ToJSON(..), object, (.=))
@@ -64,6 +75,11 @@ data Report msg
       [Note msg]
       -- ^ A list of notes to add at the end of the report.
 
+pattern Warn, Err :: Maybe msg -> msg -> [(Position, Marker msg)] -> [Note msg] -> Report msg
+pattern Warn errCode msg reports notes = Report False errCode msg reports notes
+pattern Err errCode msg reports notes = Report True errCode msg reports notes
+{-# COMPLETE Warn, Err #-}
+
 instance Semigroup msg => Semigroup (Report msg) where
   Report isError1 code1 msg1 pos1 hints1 <> Report isError2 code2 msg2 pos2 hints2 =
     Report (isError1 || isError2) (code1 <|> code2) (msg1 <> msg2) (pos1 <> pos2) (hints1 <> hints2)
@@ -94,11 +110,6 @@ instance ToJSON msg => ToJSON (Report msg) where
                               , "kind" .= ("maybe" :: String)
                               ]
 #endif
-
--- | Retrieves the markers for this reports, along with their corresponding
---   positions in the source code.
-markersOf :: Report msg -> [(Position, Marker msg)]
-markersOf (Report _ _ _ markers _) = markers
 
 -- | The type of markers with abstract message type, shown under code lines.
 data Marker msg
@@ -162,8 +173,10 @@ warn,
     Report msg
 warn = Report False
 {-# INLINE warn #-}
+{-# DEPRECATED warn "'warn' is deprecated. Use 'Warn' instead." #-}
 err = Report True
 {-# INLINE err #-}
+{-# DEPRECATED err "'err' is deprecated. Use 'Err' instead." #-}
 
 -- | Transforms a warning report into an error report.
 warningToError :: Report msg -> Report msg

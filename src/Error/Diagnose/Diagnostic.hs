@@ -28,5 +28,4 @@ import Error.Diagnose.Diagnostic.Internal as Export
     printDiagnostic,
     warningsToErrors,
   )
-import Error.Diagnose.Report as Export (markersOf)
 import System.IO as Export (stderr, stdout)
