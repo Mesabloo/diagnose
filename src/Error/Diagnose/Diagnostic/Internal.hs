@@ -72,6 +72,10 @@ hasReports :: Diagnostic msg -> Bool
 hasReports (Diagnostic DL.Nil _) = False
 hasReports _ = True
 
+-- | Retrieves the reports for this diagnostic.
+reportsOf :: Diagnostic msg -> [Report msg]
+reportsOf (Diagnostic reports _) = toList reports
+
 -- | Transforms every warning report in this diagnostic into an error report.
 warningsToErrors :: Diagnostic msg -> Diagnostic msg
 warningsToErrors (Diagnostic reports files) = Diagnostic (warningToError <$> reports) files

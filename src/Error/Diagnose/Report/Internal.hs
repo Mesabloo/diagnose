@@ -95,6 +95,11 @@ instance ToJSON msg => ToJSON (Report msg) where
                               ]
 #endif
 
+-- | Retrieves the markers for this reports, along with their corresponding
+--   positions in the source code.
+markersOf :: Report msg -> [(Position, Marker msg)]
+markersOf (Report _ _ _ markers _) = markers
+
 -- | The type of markers with abstract message type, shown under code lines.
 data Marker msg
   = -- | A red or yellow marker under source code, marking important parts of the code.

@@ -23,8 +23,10 @@ import Error.Diagnose.Diagnostic.Internal as Export
     def,
     errorsToWarnings,
     hasReports,
+    reportsOf,
     prettyDiagnostic,
     printDiagnostic,
     warningsToErrors,
   )
+import Error.Diagnose.Report as Export (markersOf)
 import System.IO as Export (stderr, stdout)
