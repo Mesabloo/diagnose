@@ -23,6 +23,7 @@ import Error.Diagnose.Diagnostic.Internal as Export
     def,
     errorsToWarnings,
     hasReports,
+    reportsOf,
     prettyDiagnostic,
     printDiagnostic,
     warningsToErrors,

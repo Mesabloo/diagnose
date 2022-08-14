@@ -43,8 +43,8 @@ It has a `Default` instance, which can be used to construct an empty diagnostic 
 
 The second step is to add some reports.
 There are two kinds of reports:
-- Error reports, created through `err`
-- Warning reports, created by using `warn`
+- Error reports, created through `Err`
+- Warning reports, created by using `Warn`
 
 Both of these fonctions have the following type:
 ```haskell
@@ -98,7 +98,7 @@ let beautifulExample =
         ["Adding 'Num(a)' to the list of constraints may solve this problem."]
         -- ^^^^ This is a 'Note' not a 'Hint', as specified by its 'IsString' instance
 
--- Create the diagnostic 
+-- Create the diagnostic
 let diagnostic  = addFile def "somefile.zc" "let id<a>(x : a) : a := x\n  + 1"
 let diagnostic' = addReport diagnostic beautifulExample
 

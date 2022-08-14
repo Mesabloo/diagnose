@@ -4,8 +4,9 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# OPTIONS -Wno-name-shadowing #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# OPTIONS -Wno-name-shadowing #-}
 
 -- |
 -- Module      : Error.Diagnose.Report.Internal
@@ -19,7 +20,10 @@
 --            It is also highly undocumented.
 --
 --            Please limit yourself to the "Error.Diagnose.Report" module, which exports some of the useful functions defined here.
-module Error.Diagnose.Report.Internal where
+module Error.Diagnose.Report.Internal
+  ( module Error.Diagnose.Report.Internal
+  , Report(.., Warn, Err)
+  ) where
 
 #ifdef USE_AESON
 import Data.Aeson (ToJSON(..), object, (.=))
@@ -63,6 +67,16 @@ data Report msg
       -- ^ A map associating positions with marker to show under the source code.
       [Note msg]
       -- ^ A list of notes to add at the end of the report.
+
+-- | Pattern synonym for a warning report.
+pattern Warn :: Maybe msg -> msg -> [(Position, Marker msg)] -> [Note msg] -> Report msg
+pattern Warn errCode msg reports notes = Report False errCode msg reports notes
+
+-- | Pattern synonym for an error report.
+pattern Err :: Maybe msg -> msg -> [(Position, Marker msg)] -> [Note msg] -> Report msg
+pattern Err errCode msg reports notes = Report True errCode msg reports notes
+
+{-# COMPLETE Warn, Err #-}
 
 instance Semigroup msg => Semigroup (Report msg) where
   Report isError1 code1 msg1 pos1 hints1 <> Report isError2 code2 msg2 pos2 hints2 =
@@ -157,8 +171,10 @@ warn,
     Report msg
 warn = Report False
 {-# INLINE warn #-}
+{-# DEPRECATED warn "'warn' is deprecated. Use 'Warn' instead." #-}
 err = Report True
 {-# INLINE err #-}
+{-# DEPRECATED err "'err' is deprecated. Use 'Err' instead." #-}
 
 -- | Transforms a warning report into an error report.
 warningToError :: Report msg -> Report msg

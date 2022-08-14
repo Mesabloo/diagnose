@@ -55,7 +55,7 @@ diagnosticFromBundle isError code msg (fromMaybe [] -> trivialHints) MP.ParseErr
           source = fromSourcePos (MP.pstateSourcePos pos)
           msgs = fromString @msg <$> lines (MP.parseErrorTextPretty error)
        in flip
-            (if isError error then err code msg else warn code msg)
+            (if isError error then Err code msg else Warn code msg)
             (errorHints error)
             if
                 | [m] <- msgs -> [(source, This m)]
