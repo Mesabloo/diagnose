@@ -10,15 +10,13 @@ import Error.Diagnose
   ( Marker (..),
     Note (Hint),
     Position (..),
-    Report,
+    Report(..),
     addFile,
     addReport,
     def,
     defaultStyle,
-    err,
     printDiagnostic,
     stdout,
-    warn,
   )
 import System.IO (hPutStrLn)
 
@@ -90,7 +88,7 @@ main = do
 
 errorNoMarkersNoHints :: Report String
 errorNoMarkersNoHints =
-  err
+  Err
     Nothing
     "Error with no marker"
     []
@@ -98,7 +96,7 @@ errorNoMarkersNoHints =
 
 errorSingleMarkerNoHints :: Report String
 errorSingleMarkerNoHints =
-  err
+  Err
     Nothing
     "Error with one marker in bounds"
     [(Position (1, 25) (1, 30) "test.zc", This "Required here")]
@@ -106,7 +104,7 @@ errorSingleMarkerNoHints =
 
 warningSingleMarkerNoHints :: Report String
 warningSingleMarkerNoHints =
-  warn
+  Warn
     Nothing
     "Warning with one marker in bounds"
     [(Position (1, 25) (1, 30) "test.zc", This "Required here")]
@@ -114,7 +112,7 @@ warningSingleMarkerNoHints =
 
 errorTwoMarkersSameLineNoOverlapNoHints :: Report String
 errorTwoMarkersSameLineNoOverlapNoHints =
-  err
+  Err
     Nothing
     "Error with two markers in bounds (no overlap) on the same line"
     [ (Position (1, 5) (1, 10) "test.zc", This "First"),
@@ -124,7 +122,7 @@ errorTwoMarkersSameLineNoOverlapNoHints =
 
 errorSingleMarkerOutOfBoundsNoHints :: Report String
 errorSingleMarkerOutOfBoundsNoHints =
-  err
+  Err
     Nothing
     "Error with one marker out of bounds"
     [(Position (10, 5) (10, 15) "test2.zc", This "Out of bounds")]
@@ -132,7 +130,7 @@ errorSingleMarkerOutOfBoundsNoHints =
 
 errorTwoMarkersSameLineOverlapNoHints :: Report String
 errorTwoMarkersSameLineOverlapNoHints =
-  err
+  Err
     Nothing
     "Error with two overlapping markers in bounds"
     [ (Position (1, 6) (1, 13) "test.zc", This "First"),
@@ -142,7 +140,7 @@ errorTwoMarkersSameLineOverlapNoHints =
 
 errorTwoMarkersSameLinePartialOverlapNoHints :: Report String
 errorTwoMarkersSameLinePartialOverlapNoHints =
-  err
+  Err
     Nothing
     "Error with two partially overlapping markers in bounds"
     [ (Position (1, 5) (1, 25) "test.zc", This "First"),
@@ -152,7 +150,7 @@ errorTwoMarkersSameLinePartialOverlapNoHints =
 
 errorTwoMarkersTwoLinesNoHints :: Report String
 errorTwoMarkersTwoLinesNoHints =
-  err
+  Err
     Nothing
     "Error with two markers on two lines in bounds"
     [ (Position (1, 5) (1, 12) "test.zc", This "First"),
@@ -162,7 +160,7 @@ errorTwoMarkersTwoLinesNoHints =
 
 realWorldExample :: Report String
 realWorldExample =
-  err
+  Err
     Nothing
     "Could not deduce constraint 'Num(a)' from the current context"
     [ (Position (1, 25) (1, 30) "test.zc", This "While applying function '+'"),
@@ -173,7 +171,7 @@ realWorldExample =
 
 errorTwoMarkersSamePositionNoHints :: Report String
 errorTwoMarkersSamePositionNoHints =
-  err
+  Err
     Nothing
     "Error with two markers on the same exact position in bounds"
     [ (Position (1, 6) (1, 10) "test.zc", This "First"),
@@ -183,7 +181,7 @@ errorTwoMarkersSamePositionNoHints =
 
 errorThreeMarkersWithOverlapNoHints :: Report String
 errorThreeMarkersWithOverlapNoHints =
-  err
+  Err
     Nothing
     "Error with three markers with overlapping in bounds"
     [ (Position (1, 9) (1, 15) "test.zc", This "First"),
@@ -194,7 +192,7 @@ errorThreeMarkersWithOverlapNoHints =
 
 errorWithMultilineErrorNoMarkerNoHints :: Report String
 errorWithMultilineErrorNoMarkerNoHints =
-  err
+  Err
     Nothing
     "Error with multi\nline message and no markers"
     []
@@ -202,7 +200,7 @@ errorWithMultilineErrorNoMarkerNoHints =
 
 errorSingleMultilineMarkerMessageNoHints :: Report String
 errorSingleMultilineMarkerMessageNoHints =
-  err
+  Err
     Nothing
     "Error with single marker with multiline message"
     [(Position (1, 9) (1, 15) "test.zc", This "First\nmultiline")]
@@ -210,7 +208,7 @@ errorSingleMultilineMarkerMessageNoHints =
 
 errorTwoMarkersSameOriginOverlapNoHints :: Report String
 errorTwoMarkersSameOriginOverlapNoHints =
-  err
+  Err
     Nothing
     "Error with two markers with same origin but partial overlap in bounds"
     [ (Position (1, 9) (1, 15) "test.zc", This "First"),
@@ -220,7 +218,7 @@ errorTwoMarkersSameOriginOverlapNoHints =
 
 errorNoMarkersSingleHint :: Report String
 errorNoMarkersSingleHint =
-  err
+  Err
     Nothing
     "Error with no marker and one hint"
     []
@@ -228,7 +226,7 @@ errorNoMarkersSingleHint =
 
 errorNoMarkersSingleMultilineHint :: Report String
 errorNoMarkersSingleMultilineHint =
-  err
+  Err
     Nothing
     "Error with no marker and one multiline hint"
     []
@@ -236,7 +234,7 @@ errorNoMarkersSingleMultilineHint =
 
 errorNoMarkersTwoHints :: Report String
 errorNoMarkersTwoHints =
-  err
+  Err
     Nothing
     "Error with no markers and two hints"
     []
@@ -246,7 +244,7 @@ errorNoMarkersTwoHints =
 
 errorSingleMultilineMarkerNoHints :: Report String
 errorSingleMultilineMarkerNoHints =
-  err
+  Err
     Nothing
     "Error with single marker spanning across multiple lines"
     [(Position (1, 15) (2, 6) "test.zc", This "First")]
@@ -254,7 +252,7 @@ errorSingleMultilineMarkerNoHints =
 
 errorTwoMarkersWithMultilineNoHints :: Report String
 errorTwoMarkersWithMultilineNoHints =
-  err
+  Err
     Nothing
     "Error with two markers, one single line and one multiline, in bounds"
     [ (Position (1, 9) (1, 13) "test.zc", This "First"),
@@ -264,7 +262,7 @@ errorTwoMarkersWithMultilineNoHints =
 
 errorTwoMultilineMarkersNoHints :: Report String
 errorTwoMultilineMarkersNoHints =
-  err
+  Err
     Nothing
     "Error with two multiline markers in bounds"
     [ (Position (1, 9) (2, 5) "test.zc", This "First"),
@@ -274,7 +272,7 @@ errorTwoMultilineMarkersNoHints =
 
 errorSingleMultilineMarkerMultilineMessageNoHints :: Report String
 errorSingleMultilineMarkerMultilineMessageNoHints =
-  err
+  Err
     Nothing
     "Error with one multiline marker with a multiline message in bounds"
     [(Position (1, 9) (2, 5) "test.zc", This "Multi\nline message")]
@@ -282,7 +280,7 @@ errorSingleMultilineMarkerMultilineMessageNoHints =
 
 errorTwoMultilineMarkersFirstMultilineMessageNoHints :: Report String
 errorTwoMultilineMarkersFirstMultilineMessageNoHints =
-  err
+  Err
     Nothing
     "Error with two multiline markers with one multiline message in bounds"
     [ (Position (1, 9) (2, 5) "test.zc", This "First"),
@@ -292,7 +290,7 @@ errorTwoMultilineMarkersFirstMultilineMessageNoHints =
 
 errorThreeMultilineMarkersTwoMultilineMessageNoHints :: Report String
 errorThreeMultilineMarkersTwoMultilineMessageNoHints =
-  err
+  Err
     Nothing
     "Error with three multiline markers with two multiline messages in bounds"
     [ (Position (1, 9) (2, 5) "test.zc", This "First"),
@@ -303,7 +301,7 @@ errorThreeMultilineMarkersTwoMultilineMessageNoHints =
 
 errorOrderSensitive :: Report String
 errorOrderSensitive =
-  err
+  Err
     Nothing
     "Order-sensitive labels with crossing"
     [ (Position (1, 1) (1, 7) "somefile.zc", This "Leftmost label"),
@@ -313,7 +311,7 @@ errorOrderSensitive =
 
 beautifulExample :: Report String
 beautifulExample =
-  err
+  Err
     Nothing
     "Could not deduce constraint 'Num(a)' from the current context"
     [ (Position (1, 25) (2, 6) "somefile.zc", This "While applying function '+'"),
@@ -324,7 +322,7 @@ beautifulExample =
 
 errorMultilineAfterSingleLine :: Report String
 errorMultilineAfterSingleLine =
-  err
+  Err
     Nothing
     "Multiline after single line"
     [ (Position (1, 17) (1, 18) "unsized.nst", Where "Kind is infered from here"),
@@ -334,7 +332,7 @@ errorMultilineAfterSingleLine =
 
 errorOnEmptyLine :: Report String
 errorOnEmptyLine =
-  err
+  Err
     Nothing
     "Error on empty line"
     [(Position (1, 5) (3, 8) "err.nst", This "error on empty line")]
@@ -342,7 +340,7 @@ errorOnEmptyLine =
 
 errorMultipleFiles :: Report String
 errorMultipleFiles =
-  err
+  Err
     Nothing
     "Error on multiple files"
     [ (Position (1, 5) (1, 7) "test.zc", Where "Function already declared here"),
@@ -352,7 +350,7 @@ errorMultipleFiles =
 
 errorWithCode :: Report String
 errorWithCode =
-  err
+  Err
     (Just "E0123")
     "Error with code and markers"
     [(Position (1, 5) (1, 7) "test.zc", This "is an error")]
@@ -360,7 +358,7 @@ errorWithCode =
 
 errorWithStrangeUnicodeInput :: Report String
 errorWithStrangeUnicodeInput =
-  err
+  Err
     (Just "❎")
     "ⓈⓉⓇⒶⓃⒼⒺ ⓊⓃⒾⒸⓄⒹⒺ"
     [ (Position (1, 1) (1, 7) "unicode.txt", This "should work fine 🎉"),
@@ -370,7 +368,7 @@ errorWithStrangeUnicodeInput =
 
 errorWithMultilineMarkerOn3Lines :: Report String
 errorWithMultilineMarkerOn3Lines =
-  err
+  Err
     Nothing
     "Multiline marker on 3 lines"
     [(Position (1, 3) (3, 10) "test.zc", This "should color all 3 lines correctly")]
@@ -378,7 +376,7 @@ errorWithMultilineMarkerOn3Lines =
 
 errorMultilineMarkerNotAtEnd :: Report String
 errorMultilineMarkerNotAtEnd =
-  err
+  Err
     Nothing
     "Multiline marker not at end of report"
     [ (Position (1, 10) (2, 3) "test.zc", This "is a multline marker"),
@@ -388,7 +386,7 @@ errorMultilineMarkerNotAtEnd =
 
 errorWithLineGap :: Report String
 errorWithLineGap =
-  err
+  Err
     Nothing
     "Error with line gaps between two markers"
     [ (Position (1, 1) (1, 3) "gaps.txt", Where "is a first marker"),
@@ -398,7 +396,7 @@ errorWithLineGap =
 
 errorWithMultilineMarkerMessage :: Report String
 errorWithMultilineMarkerMessage =
-  err
+  Err
     Nothing
     "Error with multiline message in first marker"
     [ (Position (1, 5) (1, 10) "test.zc", This "First\nmarker"),
@@ -408,7 +406,7 @@ errorWithMultilineMarkerMessage =
 
 errorWithMultilineMarkerMessage' :: Report String
 errorWithMultilineMarkerMessage' =
-  err
+  Err
     Nothing
     "Error with multiline message in first marker"
     [ (Position (1, 5) (1, 10) "test.zc", This "First\nmarker"),
@@ -419,7 +417,7 @@ errorWithMultilineMarkerMessage' =
 
 repro3 :: Report String
 repro3 =
-  err
+  Err
     (Just "WrongStaticLayerLength")
     "The length of the static layer does not match the length of the template it uses"
     [ (Position (3, 3) (5, 16) "repro3.file", Where "This template has 9 elements"),
@@ -431,7 +429,7 @@ repro3 =
 
 errorWithSingleBlankMarker :: Report String
 errorWithSingleBlankMarker =
-  err
+  Err
     Nothing
     "Error with a single blank marker"
     [(Position (1, 5) (1, 10) "test.zc", Blank)]
@@ -439,7 +437,7 @@ errorWithSingleBlankMarker =
 
 errorWithBlankAndNormalMarkerInLine :: Report String
 errorWithBlankAndNormalMarkerInLine =
-  err
+  Err
     Nothing
     "Error with a single blank marker"
     [(Position (1, 5) (1, 10) "test.zc", Blank), (Position (1, 15) (1, 22) "test.zc", This "After a blank")]
