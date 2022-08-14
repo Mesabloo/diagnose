@@ -75,9 +75,14 @@ data Report msg
       [Note msg]
       -- ^ A list of notes to add at the end of the report.
 
-pattern Warn, Err :: Maybe msg -> msg -> [(Position, Marker msg)] -> [Note msg] -> Report msg
+-- | Pattern synonym for a warning report.
+pattern Warn :: Maybe msg -> msg -> [(Position, Marker msg)] -> [Note msg] -> Report msg
 pattern Warn errCode msg reports notes = Report False errCode msg reports notes
+
+-- | Pattern synonym for an error report.
+pattern Err :: Maybe msg -> msg -> [(Position, Marker msg)] -> [Note msg] -> Report msg
 pattern Err errCode msg reports notes = Report True errCode msg reports notes
+
 {-# COMPLETE Warn, Err #-}
 
 instance Semigroup msg => Semigroup (Report msg) where
