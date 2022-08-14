@@ -71,9 +71,9 @@ import Error.Diagnose.Style as Export
 --
 --   This library allows defining two kinds of reports:
 --
---   - Errors, using 'err'
+--   - Errors, using 'Err'
 --
---   - Warnings, using 'warn'
+--   - Warnings, using 'Warn'
 --
 --   Both take an optional error code, a message, a list of located markers and a list of hints.
 --
@@ -81,7 +81,7 @@ import Error.Diagnose.Style as Export
 --
 --   > exampleReport :: Report String
 --   > exampleReport =
---   >   err
+--   >   Err
 --   >     -- vv  OPTIONAL ERROR CODE
 --   >     Nothing
 --   >     -- vv  ERROR MESSAGE
@@ -285,7 +285,7 @@ import Error.Diagnose.Style as Export
 --   >     in printDiagnostic stderr True True 4 diag'
 --   >   Right res  -> print res
 --
---   This will output the following errr on @stderr@:
+--   This will output the following error on @stderr@:
 --
 --   > [error]: Parse error on input
 --   >      ╭──▶ <interactive>@1:6-1:7
