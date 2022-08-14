@@ -21,15 +21,8 @@
 --
 --            Please limit yourself to the "Error.Diagnose.Report" module, which exports some of the useful functions defined here.
 module Error.Diagnose.Report.Internal
-  ( Marker (..)
-  , Note (..)
+  ( module Error.Diagnose.Report.Internal
   , Report(.., Warn, Err)
-  , err
-  , errorToWarning
-  , warn
-  , warningToError
-  , FileMap
-  , prettyReport
   ) where
 
 #ifdef USE_AESON
