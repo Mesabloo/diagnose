@@ -107,6 +107,7 @@ instance ToJSON msg => ToJSON (Report msg) where
                    Maybe m -> [ "message" .= m
                               , "kind" .= ("maybe" :: String)
                               ]
+                   Blank -> [ "kind" .= ("blank" :: String) ]
 #endif
 
 -- | The type of markers with abstract message type, shown under code lines.
