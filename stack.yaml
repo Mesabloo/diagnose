@@ -31,6 +31,7 @@ resolver: lts-18.28
 packages:
 - diagnose-core
 - diagnose-ariadne
+- .
 # Dependency packages to be pulled from upstream that are not in the resolver.
 # These entries can reference officially published versions as well as
 # forks / in-progress versions pinned to a git hash. For example:
@@ -45,6 +46,11 @@ extra-deps:
 
 # Override default flag values for local packages and extra-deps
 # flags: {}
+flags:
+  diagnose:
+    megaparsec-compat: true
+    parsec-compat: true
+    json: true
 
 # Extra package databases containing global packages
 # extra-package-dbs: []

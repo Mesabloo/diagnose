@@ -1,0 +1,63 @@
+# DO NOT PUT THIS PACKAGE ON HACKAGE!
+# YOU HAVE BEEN WARNED!
+
+name: diagnose-tests
+github: "mesabloo/diagnose"
+license: BSD3
+author: "Ghilain Bergeron"
+copyright: "2021-2022 Ghilain Bergeron"
+category: "Error Reporting"
+
+default-extensions:
+- OverloadedStrings
+- LambdaCase
+- BlockArguments
+
+ghc-options:
+- -Wall
+- -Wextra
+# - -Wmissing-local-signatures
+# - -Wmonomorphism-restriction
+
+extra-source-files: []
+
+dependencies:
+- base >= 4.7 && < 5
+- unordered-containers >= 0.2 && < 0.3
+
+tests:
+  diagnose-rendering-tests:
+    main:                Spec.hs
+    source-dirs:         test/rendering
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - diagnose
+    - diagnose-ariadne
+  diagnose-megaparsec-tests:
+    main:                  Spec.hs
+    source-dirs:           test/megaparsec
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - diagnose 
+    - diagnose-ariadne
+    - megaparsec >= 9.0.0
+    - text >= 1.2 && < 3
+  diagnose-parsec-tests:
+    main:                  Spec.hs
+    source-dirs:           test/parsec
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - diagnose 
+    - diagnose-ariadne
+    - parsec >= 3.1.14
+    - text >= 1.2 && < 3
+

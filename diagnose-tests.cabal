@@ -1,0 +1,85 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.34.7.
+--
+-- see: https://github.com/sol/hpack
+
+name:           diagnose-tests
+version:        0.0.0
+category:       Error Reporting
+homepage:       https://github.com/mesabloo/diagnose#readme
+bug-reports:    https://github.com/mesabloo/diagnose/issues
+author:         Ghilain Bergeron
+maintainer:     Ghilain Bergeron
+copyright:      2021-2022 Ghilain Bergeron
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/mesabloo/diagnose
+
+test-suite diagnose-megaparsec-tests
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Instances
+      Repro6
+      Paths_diagnose_tests
+  hs-source-dirs:
+      test/megaparsec
+  default-extensions:
+      OverloadedStrings
+      LambdaCase
+      BlockArguments
+  ghc-options: -Wall -Wextra -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , diagnose
+    , diagnose-ariadne
+    , megaparsec >=9.0.0
+    , text >=1.2 && <3
+    , unordered-containers ==0.2.*
+  default-language: Haskell2010
+
+test-suite diagnose-parsec-tests
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Repro2
+      Paths_diagnose_tests
+  hs-source-dirs:
+      test/parsec
+  default-extensions:
+      OverloadedStrings
+      LambdaCase
+      BlockArguments
+  ghc-options: -Wall -Wextra -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , diagnose
+    , diagnose-ariadne
+    , parsec >=3.1.14
+    , text >=1.2 && <3
+    , unordered-containers ==0.2.*
+  default-language: Haskell2010
+
+test-suite diagnose-rendering-tests
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_diagnose_tests
+  hs-source-dirs:
+      test/rendering
+  default-extensions:
+      OverloadedStrings
+      LambdaCase
+      BlockArguments
+  ghc-options: -Wall -Wextra -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , diagnose
+    , diagnose-ariadne
+    , unordered-containers ==0.2.*
+  default-language: Haskell2010
