@@ -10,7 +10,7 @@ import Error.Diagnose
   ( Marker (..),
     Note (Hint),
     Position (..),
-    Report(..),
+    Report (..),
     addFile,
     addReport,
     def,
@@ -18,6 +18,7 @@ import Error.Diagnose
     printDiagnostic,
     stdout,
   )
+import Error.Diagnose.Layout.Ariadne (ariadneLayout)
 import System.IO (hPutStrLn)
 
 main :: IO ()
@@ -77,9 +78,9 @@ main = do
   let diag = HashMap.foldlWithKey' addFile (foldl addReport def reports) files
 
   hPutStrLn stdout "\n\nWith unicode: ─────────────────────────\n"
-  printDiagnostic stdout True True 4 defaultStyle diag
+  printDiagnostic stdout True True 4 defaultStyle ariadneLayout diag
   hPutStrLn stdout "\n\nWithout unicode: ----------------------\n"
-  printDiagnostic stdout False True 4 defaultStyle diag
+  printDiagnostic stdout False True 4 defaultStyle ariadneLayout diag
 #ifdef USE_AESON
   hPutStrLn stdout "\n\nAs JSON: ------------------------------\n"
   BS.hPutStr stdout (diagnosticToJson diag)

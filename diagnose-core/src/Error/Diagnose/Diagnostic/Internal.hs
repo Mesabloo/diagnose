@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE RankNTypes #-}
 
 -- |
 -- Module      : Error.Diagnose.Diagnostic.Internal
@@ -25,13 +26,12 @@ import Data.Array (listArray)
 import Data.DList (DList)
 import qualified Data.DList as DL
 import Data.Default (Default, def)
-import Data.Foldable (fold, toList)
+import Data.Foldable (toList)
 import qualified Data.HashMap.Lazy as HashMap
-import Data.List (intersperse)
 import Error.Diagnose.Report (Report)
-import Error.Diagnose.Report.Internal (FileMap, errorToWarning, prettyReport, warningToError)
+import Error.Diagnose.Report.Internal (FileMap, errorToWarning, warningToError)
 import Error.Diagnose.Style (Annotation, Style)
-import Prettyprinter (Doc, Pretty, hardline, unAnnotate)
+import Prettyprinter (Doc, Pretty, unAnnotate)
 import Prettyprinter.Render.Terminal (hPutDoc)
 import System.IO (Handle)
 
@@ -76,6 +76,10 @@ hasReports _ = True
 reportsOf :: Diagnostic msg -> [Report msg]
 reportsOf (Diagnostic reports _) = toList reports
 
+-- | Retrieves all the files present inside the given diagnostic.
+filesOf :: Diagnostic msg -> FileMap
+filesOf (Diagnostic _ files) = files
+
 -- | Transforms every warning report in this diagnostic into an error report.
 warningsToErrors :: Diagnostic msg -> Diagnostic msg
 warningsToErrors (Diagnostic reports files) = Diagnostic (warningToError <$> reports) files
@@ -84,29 +88,14 @@ warningsToErrors (Diagnostic reports files) = Diagnostic (warningToError <$> rep
 errorsToWarnings :: Diagnostic msg -> Diagnostic msg
 errorsToWarnings (Diagnostic reports files) = Diagnostic (errorToWarning <$> reports) files
 
--- | Pretty prints a 'Diagnostic' into a 'Doc'ument that can be output using 'hPutDoc'.
+-- | A type alias for layouting functions, where:
 --
---   Colors are put by default.
---   If you do not want these, just 'unAnnotate' the resulting document like so:
+-- - The first argument tells whether to use Unicode characters or not
+-- - The second argument is the number of spaces which must be used to render a @TAB@ character
+-- - The third argument is the diagnostic to render
 --
---   >>> let doc = unAnnotate (prettyDiagnostic withUnicode tabSize diagnostic)
---
---   Changing the style is also rather easy:
---
---   >>> let myCustomStyle :: Style = _
---   >>> let doc = myCustomStyle (prettyDiagnostic withUnicode tabSize diagnostic)
-prettyDiagnostic ::
-  Pretty msg =>
-  -- | Should we use unicode when printing paths?
-  Bool ->
-  -- | The number of spaces each TAB character will span.
-  Int ->
-  -- | The diagnostic to print.
-  Diagnostic msg ->
-  Doc Annotation
-prettyDiagnostic withUnicode tabSize (Diagnostic reports file) =
-  fold . intersperse hardline $ prettyReport file withUnicode tabSize <$> toList reports
-{-# INLINE prettyDiagnostic #-}
+-- The resulting 'Doc'ument contains unprocessed style 'Annotation's.
+type Layout msg = Pretty msg => Bool -> Int -> Diagnostic msg -> Doc Annotation
 
 -- | Prints a 'Diagnostic' onto a specific 'Handle'.
 printDiagnostic ::
@@ -121,11 +110,13 @@ printDiagnostic ::
   Int ->
   -- | The style in which to output the diagnostic.
   Style ->
+  -- | The layout to use to render the diagnostic.
+  Layout msg ->
   -- | The diagnostic to output.
   Diagnostic msg ->
   m ()
-printDiagnostic handle withUnicode withColors tabSize style diag =
-  liftIO $ hPutDoc handle ((if withColors then style else unAnnotate) $ prettyDiagnostic withUnicode tabSize diag)
+printDiagnostic handle withUnicode withColors tabSize style layout diag =
+  liftIO $ hPutDoc handle ((if withColors then style else unAnnotate) $ layout withUnicode tabSize diag)
 {-# INLINE printDiagnostic #-}
 
 -- | Inserts a new referenceable file within the diagnostic.

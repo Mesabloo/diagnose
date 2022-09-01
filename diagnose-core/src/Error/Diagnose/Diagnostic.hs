@@ -22,10 +22,10 @@ import Error.Diagnose.Diagnostic.Internal as Export
     addReport,
     def,
     errorsToWarnings,
+    filesOf,
     hasReports,
-    reportsOf,
-    prettyDiagnostic,
     printDiagnostic,
+    reportsOf,
     warningsToErrors,
   )
 import System.IO as Export (stderr, stdout)

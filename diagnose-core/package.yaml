@@ -1,5 +1,5 @@
 name: diagnose
-version: 2.4.0
+version: 3.0.0
 github: "mesabloo/diagnose"
 license: BSD3
 author: "Ghilain Bergeron"
@@ -15,10 +15,6 @@ dependencies:
 - prettyprinter >= 1.7.0 && < 2
 - prettyprinter-ansi-terminal >= 1.1.0 && < 2
 - unordered-containers >= 0.2 && < 0.3
-- wcwidth >= 0.0.1 && <1
-- text >= 1.0.0.0 && <= 2.0
-# ^^^ This is unfortunately required, but as 'prettyprinter' already depends on it, it will already have been fetched
-# into the local cache anyway.
 
 default-extensions:
 - OverloadedStrings
@@ -30,6 +26,7 @@ library:
   exposed-modules:
   - Error.Diagnose
   - Error.Diagnose.Diagnostic
+  - Error.Diagnose.Layout
   - Error.Diagnose.Position
   - Error.Diagnose.Pretty
   - Error.Diagnose.Report
@@ -80,46 +77,7 @@ ghc-options:
 # - -Wmissing-local-signatures
 # - -Wmonomorphism-restriction
 
-extra-source-files:
-- README.md
-
-tests:
-  diagnose-rendering-tests:
-    main:                Spec.hs
-    source-dirs:         test/rendering
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - diagnose
-  diagnose-megaparsec-tests:
-    main:                  Spec.hs
-    source-dirs:           test/megaparsec
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - diagnose
-    - text >= 1.2 && < 3
-    when:
-     - condition: ! '!(flag(megaparsec-compat))'
-       buildable: false
-  diagnose-parsec-tests:
-    main:                  Spec.hs
-    source-dirs:           test/parsec
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - diagnose
-    - text >= 1.2 && < 3
-    when:
-     - condition: ! '!(flag(parsec-compat))'
-       buildable: false
-
+extra-source-files: []
 
 # This is put at the end for convenience.
 synopsis: Beautiful error reporting done easily

@@ -13,6 +13,7 @@ import qualified Data.Text as Text (unpack)
 import Data.Void (Void)
 import Error.Diagnose
 import Error.Diagnose.Compat.Parsec
+import Error.Diagnose.Layout.Ariadne (ariadneLayout)
 --
 import qualified Repro2 as Issue2
 --
@@ -32,13 +33,13 @@ main = do
       res3 = first (errorDiagnosticFromParseError Nothing "Parse error on input" Nothing) $ P.parse (test1 <* P.eof) filename content3
 
   case res1 of
-    Left diag -> printDiagnostic stdout True True 4 defaultStyle (addFile diag filename (Text.unpack content1) :: Diagnostic String)
+    Left diag -> printDiagnostic stdout True True 4 defaultStyle ariadneLayout (addFile diag filename (Text.unpack content1) :: Diagnostic String)
     Right res -> print res
   case res2 of
-    Left diag -> printDiagnostic stdout True True 4 defaultStyle (addFile diag filename (Text.unpack content2) :: Diagnostic String)
+    Left diag -> printDiagnostic stdout True True 4 defaultStyle ariadneLayout (addFile diag filename (Text.unpack content2) :: Diagnostic String)
     Right res -> print res
   case res3 of
-    Left diag -> printDiagnostic stdout True True 4 defaultStyle (addFile diag filename (Text.unpack content3) :: Diagnostic String)
+    Left diag -> printDiagnostic stdout True True 4 defaultStyle ariadneLayout (addFile diag filename (Text.unpack content3) :: Diagnostic String)
     Right res -> print res
 
   -- all issue reproduction

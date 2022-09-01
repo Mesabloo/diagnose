@@ -1,36 +1,13 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# OPTIONS -Wno-name-shadowing #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 
--- |
--- Module      : Error.Diagnose.Report.Internal
--- Description : Internal workings for report definitions and pretty printing.
--- Copyright   : (c) Mesabloo, 2021-2022
--- License     : BSD3
--- Stability   : experimental
--- Portability : Portable
---
--- /Warning/: The API of this module can break between two releases, therefore you should not rely on it.
---            It is also highly undocumented.
---
---            Please limit yourself to the "Error.Diagnose.Report" module, which exports some of the useful functions defined here.
-module Error.Diagnose.Report.Internal
-  ( module Error.Diagnose.Report.Internal
-  , Report(.., Warn, Err)
-  ) where
+module Error.Diagnose.Layout.Ariadne (ariadneLayout) where
 
-#ifdef USE_AESON
-import Data.Aeson (ToJSON(..), object, (.=))
-#endif
-import Control.Applicative ((<|>))
 import qualified Data.Array.IArray as Array
-import Data.Array.Unboxed (Array, IArray, Ix, UArray, listArray, (!))
+import Data.Array.Unboxed (IArray, Ix, UArray, listArray, (!))
 import Data.Bifunctor (bimap, first, second)
 import Data.Char.WCWidth (wcwidth)
 import Data.Default (def)
@@ -39,153 +16,41 @@ import Data.Function (on)
 import Data.Functor ((<&>))
 import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
+import Data.List (intersperse)
 import qualified Data.List as List
 import qualified Data.List.Safe as List
-import Data.Maybe
-import Data.Ord (Down (Down))
-import Data.String (IsString (fromString))
+import Data.Maybe (fromMaybe)
+import Data.Ord (Down (..))
 import qualified Data.Text as Text
-import Error.Diagnose.Position
+import Error.Diagnose.Diagnostic (filesOf, reportsOf)
+import Error.Diagnose.Layout (FileMap, Layout)
+import Error.Diagnose.Position (Position (..))
+import Error.Diagnose.Report (Marker (..), Note (..), Report (..))
 import Error.Diagnose.Style (Annotation (..))
-import Prettyprinter (Doc, Pretty (..), align, annotate, colon, hardline, lbracket, rbracket, space, width, (<+>))
-import Prettyprinter.Internal (Doc (..))
+import Prettyprinter (Doc, Pretty, align, annotate, colon, hardline, lbracket, pretty, rbracket, space, width, (<+>))
+import Prettyprinter.Internal.Type (Doc (..))
 
-type FileMap = HashMap FilePath (Array Int String)
+-- | Pretty prints a 'Diagnostic' into a 'Doc'ument that can be output using 'hPutDoc'.
+--
+--   Colors are put by default.
+--   If you do not want these, just 'unAnnotate' the resulting document like so:
+--
+--   >>> let doc = unAnnotate (prettyDiagnostic withUnicode tabSize diagnostic)
+--
+--   Changing the style is also rather easy:
+--
+--   >>> let myCustomStyle :: Style = _
+--   >>> let doc = myCustomStyle (prettyDiagnostic withUnicode tabSize diagnostic)
+ariadneLayout :: Layout msg
+ariadneLayout withUnicode tabSize diag =
+  fold . intersperse hardline $ prettyReport (filesOf diag) withUnicode tabSize <$> reportsOf diag
+{-# INLINE ariadneLayout #-}
+
+--------------------------------------
+------------- INTERNAL ---------------
+--------------------------------------
 
 type WidthTable = UArray Int Int
-
--- | The type of diagnostic reports with abstract message type.
-data Report msg
-  = Report
-      Bool
-      -- ^ Is the report a warning or an error?
-      (Maybe msg)
-      -- ^ An optional error code to print at the top.
-      msg
-      -- ^ The message associated with the error.
-      [(Position, Marker msg)]
-      -- ^ A map associating positions with marker to show under the source code.
-      [Note msg]
-      -- ^ A list of notes to add at the end of the report.
-
--- | Pattern synonym for a warning report.
-pattern Warn :: Maybe msg -> msg -> [(Position, Marker msg)] -> [Note msg] -> Report msg
-pattern Warn errCode msg reports notes = Report False errCode msg reports notes
-
--- | Pattern synonym for an error report.
-pattern Err :: Maybe msg -> msg -> [(Position, Marker msg)] -> [Note msg] -> Report msg
-pattern Err errCode msg reports notes = Report True errCode msg reports notes
-
-{-# COMPLETE Warn, Err #-}
-
-instance Semigroup msg => Semigroup (Report msg) where
-  Report isError1 code1 msg1 pos1 hints1 <> Report isError2 code2 msg2 pos2 hints2 =
-    Report (isError1 || isError2) (code1 <|> code2) (msg1 <> msg2) (pos1 <> pos2) (hints1 <> hints2)
-
-instance Monoid msg => Monoid (Report msg) where
-  mempty = Report False Nothing mempty mempty mempty
-
-#ifdef USE_AESON
-instance ToJSON msg => ToJSON (Report msg) where
-  toJSON (Report isError code msg markers hints) =
-    object [ "kind" .= (if isError then "error" else "warning" :: String)
-           , "code" .= code
-           , "message" .= msg
-           , "markers" .= fmap showMarker markers
-           , "hints" .= hints
-           ]
-    where
-      showMarker (pos, marker) =
-        object $ [ "position" .= pos ]
-              <> case marker of
-                   This m  -> [ "message" .= m
-                              , "kind" .= ("this" :: String)
-                              ]
-                   Where m -> [ "message" .= m
-                              , "kind" .= ("where" :: String)
-                              ]
-                   Maybe m -> [ "message" .= m
-                              , "kind" .= ("maybe" :: String)
-                              ]
-                   Blank -> [ "kind" .= ("blank" :: String) ]
-#endif
-
--- | The type of markers with abstract message type, shown under code lines.
-data Marker msg
-  = -- | A red or yellow marker under source code, marking important parts of the code.
-    This msg
-  | -- | A blue marker symbolizing additional information.
-    Where msg
-  | -- | A magenta marker to report potential fixes.
-    Maybe msg
-  | -- | An empty marker, whose sole purpose is to include a line of code in the report without markers under.
-    Blank
-
-instance Eq (Marker msg) where
-  This _ == This _ = True
-  Where _ == Where _ = True
-  Maybe _ == Maybe _ = True
-  Blank == Blank = True
-  _ == _ = False
-  {-# INLINEABLE (==) #-}
-
-instance Ord (Marker msg) where
-  This _ < _ = False
-  Where _ < This _ = True
-  Where _ < _ = False
-  Maybe _ < _ = True
-  _ < Blank = True
-  Blank < _ = False
-  {-# INLINEABLE (<) #-}
-
-  m1 <= m2 = m1 < m2 || m1 == m2
-  {-# INLINEABLE (<=) #-}
-
--- | A note is a piece of information that is found at the end of a report.
-data Note msg
-  = -- | A note, which is meant to give valuable information related to the encountered error.
-    Note msg
-  | -- | A hint, to propose potential fixes or help towards fixing the issue.
-    Hint msg
-
-#ifdef USE_AESON
-instance ToJSON msg => ToJSON (Note msg) where
-  toJSON (Note msg) = object [ "note" .= msg ]
-  toJSON (Hint msg) = object [ "hint" .= msg ]
-#endif
-
--- | Constructs a 'Note' from the given message as a literal string.
-instance IsString msg => IsString (Note msg) where
-  fromString = Note . fromString
-
--- | Constructs a warning or an error report.
-warn,
-  err ::
-    -- | An optional error code to be shown right next to "error" or "warning".
-    Maybe msg ->
-    -- | The report message, shown at the very top.
-    msg ->
-    -- | A list associating positions with markers.
-    [(Position, Marker msg)] ->
-    -- | A possibly mempty list of hints to add at the end of the report.
-    [Note msg] ->
-    Report msg
-warn = Report False
-{-# INLINE warn #-}
-{-# DEPRECATED warn "'warn' is deprecated. Use 'Warn' instead." #-}
-err = Report True
-{-# INLINE err #-}
-{-# DEPRECATED err "'err' is deprecated. Use 'Err' instead." #-}
-
--- | Transforms a warning report into an error report.
-warningToError :: Report msg -> Report msg
-warningToError (Report False code msg markers notes) = Report True code msg markers notes
-warningToError r@(Report True _ _ _ _) = r
-
--- | Transforms an error report into a warning report.
-errorToWarning :: Report msg -> Report msg
-errorToWarning (Report True code msg markers notes) = Report False code msg markers notes
-errorToWarning r@(Report False _ _ _ _) = r
 
 -- | Pretty prints a report to a 'Doc' handling colors.
 prettyReport ::
@@ -199,7 +64,23 @@ prettyReport ::
   -- | The whole report to output
   Report msg ->
   Doc Annotation
-prettyReport fileContent withUnicode tabSize (Report isError code message markers hints) =
+prettyReport fileContent withUnicode tabSize (Warn code message markers hints) =
+  prettyReport' fileContent withUnicode tabSize False code message markers hints
+prettyReport fileContent withUnicode tabSize (Err code message markers hints) =
+  prettyReport' fileContent withUnicode tabSize True code message markers hints
+
+prettyReport' ::
+  Pretty msg =>
+  FileMap ->
+  Bool ->
+  Int ->
+  Bool ->
+  Maybe msg ->
+  msg ->
+  [(Position, Marker msg)] ->
+  [Note msg] ->
+  Doc Annotation
+prettyReport' fileContent withUnicode tabSize isError code message markers hints =
   let sortedMarkers = List.sortOn (fst . begin . fst) markers
       -- sort the markers so that the first lines of the reports are the first lines of the file
 
@@ -637,7 +518,7 @@ showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUn
                     <+> annotate (markerColor isError msg) (replaceLinesWith (hardline <+> lineStart pipesBeforeMessageRendered <+> if List.null pipesBeforeMessageStart then "  " else " ") $ pretty $ markerMessage msg)
          in hardline <+> prefix <> showMessages specialPrefix pipes lineLen
 
--- WARN: uses the internal of the library
+-- WARN: uses the internal of the library 'prettyprinter'
 --
 --       DO NOT use a wildcard here, in case the internal API exposes one more constructor
 
