@@ -5,12 +5,12 @@ It was in the beginning heavily inspired by [`ariadne`](https://github.com/zeste
 
 As a great example, here's the output of the last test with the `ariadne`-like layout:
 
-![first example](./assets/real-world-example-unicode.png)
+![first example](https://raw.githubusercontent.com/Mesabloo/diagnose/custom-layouts/assets/real-world-example-unicode.png)
 
 If you do not like unicode characters, or choose to target platforms which cannot output them natively;
 you may alternatively print the whole diagnostic with ASCII characters, like this:
 
-![second example](./assets/real-world-example-ascii.png)
+![second example](https://raw.githubusercontent.com/Mesabloo/diagnose/custom-layouts/assets/real-world-example-ascii.png)
 
 Colors are also optional, and you may choose not to print them.
 

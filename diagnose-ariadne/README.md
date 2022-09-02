@@ -3,7 +3,7 @@
 This is an implementation of a custom layout for Diagnose, heavily inspired by [`ariadne`](https://github.com/zesterer/ariadne).
 As an example, here is a random test diagnostic:
 
-![real world example](../assets/real-world-example-unicode.png)
+![real world example](https://raw.githubusercontent.com/Mesabloo/diagnose/custom-layouts/assets/real-world-example-unicode.png)
 
 See how similar it is to `ariadne`:
 
