@@ -1,9 +1,9 @@
 # Error reporting made easy
 
 Diagnose is a small library used to report compiler/interpreter errors in a beautiful yet readable way.
-It was in the beginning heavily inspired by [ariadne](https://github.com/zesterer/ariadne), but ended up quickly becoming its own thing.
+It was in the beginning heavily inspired by [`ariadne`](https://github.com/zesterer/ariadne), but ended up quickly becoming its own thing.
 
-As a great example, here's the output of the last test:
+As a great example, here's the output of the last test with the `ariadne`-like layout:
 
 ![first example](./assets/real-world-example-unicode.png)
 
@@ -103,7 +103,7 @@ let diagnostic  = addFile def "somefile.zc" "let id<a>(x : a) : a := x\n  + 1"
 let diagnostic' = addReport diagnostic beautifulExample
 
 -- Print with unicode characters, colors and the default style
-printDiagnostic stdout True True 4 defaultStyle diagnostic'
+printDiagnostic stdout True True 4 defaultStyle ariadneLayout diagnostic'
 ```
 
 More examples are given in the [`test/rendering`](./test/rendering) folder (execute `stack test` to see the output).

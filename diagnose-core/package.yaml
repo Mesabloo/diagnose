@@ -77,7 +77,8 @@ ghc-options:
 # - -Wmissing-local-signatures
 # - -Wmonomorphism-restriction
 
-extra-source-files: []
+extra-source-files:
+- README.md
 
 # This is put at the end for convenience.
 synopsis: Beautiful error reporting done easily
