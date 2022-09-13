@@ -27,7 +27,6 @@ import qualified Error.Diagnose as E (Note(Note, Hint))
 import Error.Diagnose.Layout (FileMap)
 import Prettyprinter (Doc, Pretty(..), (<+>), annotate, brackets, emptyDoc, colon, space, hardline, column, fill)
 import Prettyprinter.Internal (Doc(..))
-import Debug.Trace (traceShowId)
 
 unicodeWidth :: Int -> Int -> Char -> Int
 unicodeWidth tabSize col c@(wcwidth -> w)
