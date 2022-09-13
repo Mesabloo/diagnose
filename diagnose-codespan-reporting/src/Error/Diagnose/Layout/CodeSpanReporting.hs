@@ -37,12 +37,13 @@ defaultStyle = reAnnotate \case
   R.SourceBorder -> colorDull Cyan -- Blue
   R.NoteBullet -> colorDull Cyan -- Blue
   R.LineNumber -> colorDull Cyan -- Blue
-  R.SourceTint sev sty -> marker sev sty
-  R.MarkerTint sev sty -> marker sev sty
-  where marker R.Bug     R.SThis  = colorDull Red
-        marker R.Error   R.SThis  = colorDull Red
-        marker R.Warning R.SThis  = colorDull Yellow
-        marker R.Note    R.SThis  = colorDull Green
-        marker R.Help    R.SThis  = colorDull Cyan
-        marker _         R.SBlank = mempty
-        marker _         _        = colorDull Cyan -- Blue
+  R.SourceTint sev sty -> marker sev sty True
+  R.MarkerTint sev sty -> marker sev sty False
+  where marker R.Bug     R.SThis  _     = colorDull Red
+        marker R.Error   R.SThis  _     = colorDull Red
+        marker R.Warning R.SThis  _     = colorDull Yellow
+        marker R.Note    R.SThis  _     = colorDull Green
+        marker R.Help    R.SThis  _     = colorDull Cyan
+        marker _         R.SBlank _     = mempty
+        marker _         _        True  = colorDull White
+        marker _         _        False = colorDull Cyan -- Blue
