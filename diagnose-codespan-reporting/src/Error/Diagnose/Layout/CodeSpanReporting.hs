@@ -1,22 +1,22 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
-module Error.Diagnose.Layout.CodeSpanReporting (codespanReportingLayout) where
+module Error.Diagnose.Layout.CodeSpanReporting (codespanReportingLayout, defaultStyle) where
 
 import qualified Data.Array.IArray as Array
 import Data.Array.Unboxed (IArray, Ix, UArray, listArray, (!))
 import Data.Bifunctor (bimap, first, second)
-import Data.Char.WCWidth (wcwidth)
+import qualified Data.Char.WCWidth as W (wcwidth)
+import Data.Char (ord)
 import Data.Default (def)
 import Data.Foldable (fold)
 import Data.Function (on)
 import Data.Functor ((<&>))
 import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
-import Data.List (intersperse)
 import qualified Data.List as List
 import qualified Data.List.Safe as List
 import Data.Maybe (fromMaybe)
@@ -26,9 +26,14 @@ import Error.Diagnose.Diagnostic (filesOf, reportsOf)
 import Error.Diagnose.Layout (FileMap, Layout)
 import Error.Diagnose.Position (Position (..))
 import Error.Diagnose.Report (Marker (..), Note (..), Report (..))
-import Error.Diagnose.Style (Annotation (..))
-import Prettyprinter (Doc, Pretty, align, annotate, colon, hardline, lbracket, pretty, rbracket, space, width, (<+>))
+import Error.Diagnose.Style (Annotation (..), Style, reAnnotate)
+import Prettyprinter (Doc, Pretty, align, annotate, brackets, colon, emptyDoc, hardline, pretty, space, width, (<+>))
 import Prettyprinter.Internal.Type (Doc (..))
+import Text.Printf (printf)
+
+import Error.Diagnose (bold, color, Color(..), colorDull)
+import qualified Error.Diagnose.Layout.CodeSpanReporting.Config as R
+import qualified Error.Diagnose.Layout.CodeSpanReporting.Render as R
 
 -- | Pretty prints a 'Diagnostic' into a 'Doc'ument that can be output using 'hPutDoc'.
 --
@@ -41,10 +46,33 @@ import Prettyprinter.Internal.Type (Doc (..))
 --
 --   >>> let myCustomStyle :: Style = _
 --   >>> let doc = myCustomStyle (prettyDiagnostic withUnicode tabSize diagnostic)
-codespanReportingLayout :: Layout msg
-codespanReportingLayout withUnicode tabSize diag =
-  fold . intersperse hardline $ prettyReport (filesOf diag) withUnicode tabSize <$> reportsOf diag
+codespanReportingLayout :: Layout R.Annotation msg
+codespanReportingLayout withUnicode tabSize diag
+  = foldMap (R.report (filesOf diag) chars tabSize) (reportsOf diag)
+  -- fold . intersperse hardline $ prettyReport (filesOf diag) withUnicode tabSize <$> reportsOf diag
+  where chars = if withUnicode then R.unicodeChars else R.asciiChars
 {-# INLINE codespanReportingLayout #-}
+
+defaultStyle :: Style R.Annotation
+defaultStyle = reAnnotate \case
+  R.Header R.Bug     -> bold <> color Red
+  R.Header R.Error   -> bold <> color Red
+  R.Header R.Warning -> bold <> color Yellow
+  R.Header R.Note    -> bold <> color Green
+  R.Header R.Help    -> bold <> color Cyan
+  R.HeaderMessage -> bold <> color White
+  R.SourceBorder -> colorDull Cyan -- Blue
+  R.NoteBullet -> colorDull Cyan -- Blue
+  R.LineNumber -> colorDull Cyan -- Blue
+  R.SourceTint sev sty -> marker sev sty
+  R.MarkerTint sev sty -> marker sev sty
+  where marker R.Bug     R.SThis  = colorDull Red
+        marker R.Error   R.SThis  = colorDull Red
+        marker R.Warning R.SThis  = colorDull Yellow
+        marker R.Note    R.SThis  = colorDull Green
+        marker R.Help    R.SThis  = colorDull Cyan
+        marker _         R.SBlank = mempty
+        marker _         _        = colorDull Cyan -- Blue
 
 --------------------------------------
 ------------- INTERNAL ---------------
@@ -93,43 +121,22 @@ prettyReport' fileContent withUnicode tabSize isError code message markers hints
       header =
         annotate
           (KindColor isError)
-          ( lbracket
-              <> ( if isError
-                     then "error"
-                     else "warning"
-                 )
-              <> case code of
-                Nothing -> rbracket
-                Just code -> space <> pretty code <> rbracket
-          )
+          ((if isError then "error" else "warning")
+            <> maybe emptyDoc (brackets . pretty) code)
    in {-
               A report is of the form:
-              (1)    [error|warning]: <message>
-              (2)           +--> <file>
-              (3)           :
+              (1)    <severity>[<code>]: <message>
+              (2)           --> <file:line:column>
+              (3)           |
               (4)    <line> | <line of code>
-                            : <marker lines>
-                            : <marker messages>
-              (5)           :
-                            : <hints>
-              (6)    -------+
+              (5)           | <marker & messages>
+              (6)           |
+              (7)           = <hints>
       -}
 
       {- (1) -} header <> colon <+> align (pretty message)
-        <> {- (2), (3), (4) -} fold (uncurry (prettySubReport fileContent withUnicode isError tabSize maxLineNumberLength) <$> groupedMarkers)
-        <> {- (5) -} ( if
-                           | null hints && null markers -> mempty
-                           | null hints -> mempty
-                           | otherwise -> hardline <+> dotPrefix maxLineNumberLength withUnicode
-                     )
-        <> prettyAllHints hints maxLineNumberLength withUnicode
-        <> hardline
-        <> {- (6) -} ( if null markers && null hints
-                         then mempty
-                         else
-                           annotate RuleColor (pad (maxLineNumberLength + 2) (if withUnicode then '─' else '-') mempty <> if withUnicode then "╯" else "+")
-                             <> hardline
-                     )
+        <> {- (2)..(6) -} fold (uncurry (prettySubReport fileContent withUnicode isError tabSize maxLineNumberLength) <$> groupedMarkers)
+        <> {- (7) -} prettyAllHints hints maxLineNumberLength withUnicode
 
 -------------------------------------------------------------------------------------
 ----- INTERNAL STUFF ----------------------------------------------------------------
@@ -138,6 +145,18 @@ prettyReport' fileContent withUnicode tabSize isError code message markers hints
 -- | Inserts a given number of character after a 'Doc'ument.
 pad :: Int -> Char -> Doc ann -> Doc ann
 pad n c d = width d \w -> pretty $ replicate (n - w) c
+
+-- | Creates a "="-prefix for hints at the end of the report.
+--
+--   Pretty printing yields those results:
+--
+--   "@␣␣␣␣␣=␣@"
+hintBullet ::
+  -- | The length of the left space before the bullet.
+  Int ->
+  Doc Annotation
+hintBullet leftLen = pad leftLen ' ' emptyDoc <+> annotate RuleColor "="
+{-# INLINE hintBullet #-}
 
 -- | Creates a "dot"-prefix for a report line where there is no code.
 --
@@ -151,7 +170,7 @@ dotPrefix ::
   -- | Whether to print with unicode characters or not.
   Bool ->
   Doc Annotation
-dotPrefix leftLen withUnicode = pad leftLen ' ' mempty <+> annotate RuleColor (if withUnicode then "•" else ":")
+dotPrefix leftLen withUnicode = pad leftLen ' ' emptyDoc <+> annotate RuleColor (if withUnicode then "•" else ":")
 {-# INLINE dotPrefix #-}
 
 -- | Creates a "pipe"-prefix for a report line where there is no code.
@@ -166,7 +185,7 @@ pipePrefix ::
   -- | Whether to print with unicode characters or not.
   Bool ->
   Doc Annotation
-pipePrefix leftLen withUnicode = pad leftLen ' ' mempty <+> annotate RuleColor (if withUnicode then "│" else "|")
+pipePrefix leftLen withUnicode = pad leftLen ' ' emptyDoc <+> annotate RuleColor (if withUnicode then "│" else "|")
 {-# INLINE pipePrefix #-}
 
 -- | Creates a line-prefix for a report line containing source code
@@ -187,7 +206,7 @@ linePrefix ::
   Doc Annotation
 linePrefix leftLen lineNo withUnicode =
   let lineNoLen = length (show lineNo)
-   in annotate RuleColor $ mempty <+> pad (leftLen - lineNoLen) ' ' mempty <> pretty lineNo <+> if withUnicode then "│" else "|"
+   in annotate RuleColor $ emptyDoc <+> pad (leftLen - lineNoLen) ' ' emptyDoc <> pretty lineNo <+> if withUnicode then "│" else "|"
 {-# INLINE linePrefix #-}
 
 -- | Creates an ellipsis-prefix, when some line numbers are not consecutive.
@@ -200,7 +219,7 @@ ellipsisPrefix ::
   Int ->
   Bool ->
   Doc Annotation
-ellipsisPrefix leftLen withUnicode = pad leftLen ' ' mempty <> annotate RuleColor (if withUnicode then space <> "⋮" else "...")
+ellipsisPrefix leftLen withUnicode = pad leftLen ' ' emptyDoc <> annotate RuleColor (if withUnicode then space <> "⋮" else "...")
 
 groupMarkersPerFile ::
   Pretty msg =>
@@ -208,9 +227,9 @@ groupMarkersPerFile ::
   [(Bool, [(Position, Marker msg)])]
 groupMarkersPerFile [] = []
 groupMarkersPerFile markers =
-  let markersPerFile = List.foldl' (HashMap.unionWith (<>)) mempty $ markers <&> \tup@(p, _) -> HashMap.singleton (file p) [tup]
+  let markersPerFile = List.foldl' (HashMap.unionWith (<>)) HashMap.empty $ markers <&> \tup@(p, _) -> HashMap.singleton (file p) [tup]
    in -- put all markers on the same file together
-      -- NOTE: it's a shame that `HashMap.unionsWith f = foldl' (HashMap.unionWith f) mempty` does not exist
+      -- NOTE: it's a shame that `HashMap.unionsWith f = foldl' (HashMap.unionWith f) emptyDoc` does not exist
 
       onlyFirstToTrue $ putThisMarkersAtTop $ HashMap.elems markersPerFile
   where
@@ -224,6 +243,9 @@ groupMarkersPerFile markers =
           | any isThisMarker (snd <$> ms1) -> LT
           | any isThisMarker (snd <$> ms2) -> GT
           | otherwise -> EQ
+
+prettyPosition :: Position -> Doc Annotation
+prettyPosition (Position (l, c) _ file) = pretty file <> colon <> pretty l <> colon <> pretty c
 
 -- | Prettyprint a sub-report, which is a part of the report spanning across a single file
 prettySubReport ::
@@ -249,25 +271,17 @@ prettySubReport fileContent withUnicode isError tabSize maxLineNumberLength isFi
 
       sortedMarkersPerLine = {- second (List.sortOn (first $ snd . begin)) <$> -} List.sortOn fst (HashMap.toList markersPerLine)
 
-      reportFile = maybe (pretty @Position def) (pretty . fst) $ List.safeHead (List.sortOn (Down . snd) markers)
+      reportFile = prettyPosition $ maybe def fst $ List.safeHead (List.sortOn (Down . snd) markers)
       -- the reported file is the file of the first 'This' marker (only one must be present)
 
       allLineNumbers = List.sort $ List.nub $ (fst <$> sortedMarkersPerLine) <> (multilineMarkers >>= \(Position (bl, _) (el, _) _, _) -> [bl .. el])
 
       fileMarker =
-        ( if isFirst
-            then
-              space <> pad maxLineNumberLength ' ' mempty
-                <+> annotate RuleColor (if withUnicode then "╭──▶" else "+-->")
-            else
-              space <> dotPrefix maxLineNumberLength withUnicode <> hardline
-                <> annotate RuleColor (pad (maxLineNumberLength + 2) (if withUnicode then '─' else '-') mempty)
-                <> annotate RuleColor (if withUnicode then "┼──▶" else "+-->")
-        )
+        space <> pad maxLineNumberLength ' ' emptyDoc
+          <+> annotate RuleColor (if withUnicode then "┌─" else "-->")
           <+> annotate FileColor reportFile
-   in {- (2) -} hardline <> fileMarker
-        <> hardline
-          <+> {- (3) -} pipePrefix maxLineNumberLength withUnicode
+   in {- (2) -} hardline <> fileMarker <> hardline
+        <+> {- (3) -} pipePrefix maxLineNumberLength withUnicode
         <> {- (4) -} prettyAllLines fileContent withUnicode isError tabSize maxLineNumberLength sortedMarkersPerLine multilineMarkers allLineNumbers
 
 isThisMarker :: Marker msg -> Bool
@@ -276,7 +290,7 @@ isThisMarker _ = False
 
 -- |
 splitMarkersPerLine :: [(Position, Marker msg)] -> (HashMap Int [(Position, Marker msg)], [(Position, Marker msg)])
-splitMarkersPerLine [] = (mempty, mempty)
+splitMarkersPerLine [] = (HashMap.empty, [])
 splitMarkersPerLine (m@(Position {..}, _) : ms) =
   let (bl, _) = begin
       (el, _) = end
@@ -307,17 +321,25 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
     l1 : l2 : ls ->
       let (ms, doc) = showForLine False l1
        in doc
-            <> (if l2 /= l1 + 1 then hardline <+> dotPrefix leftLen withUnicode else mempty)
+            <> (if l2 /= l1 + 1 then hardline <+> dotPrefix leftLen withUnicode else emptyDoc)
             <> prettyAllLines files withUnicode isError tabSize leftLen inline ms (l2 : ls)
   where
     showForLine isLastLine line =
       {-
           A line of code is composed of:
           (1)     <line> | <source code>
-          (2)            : <markers>
-          (3)            : <marker messages>
+          (2)            | <marker & messages>
 
-          Multline markers may also take additional space (2 characters) on the right of the bar
+          Multline markers may further indent the code:
+          (1)     <line> │ ╭   <source code>
+          (2)     <line> │ │   
+                  <line> │ │ ╭ 
+                  <line> │ │ │ 
+          (3)            · │ │
+                  <line> │ │ │ 
+          (4)            │ │ ╰' <message>
+                  <line> │ │   else
+          (5)            │ ╰───^ <message>
       -}
       let allInlineMarkersInLine = snd =<< filter ((==) line . fst) inline
 
@@ -339,7 +361,7 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
                   if not $ null allMultilineMarkersSpanningLine
                     then colorOfFirstMultilineMarker if withUnicode then "│  " else "|  "
                     else "   "
-                else mempty
+                else emptyDoc
             (p@(Position _ (el, _) _), marker) : _ ->
               let hasPredecessor = el == line || maybe False ((/=) p . fst . fst) (List.safeUncons multiline)
                in colorOfFirstMultilineMarker
@@ -365,7 +387,7 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
               <> showMultiline (isLastLine || List.safeLast multilineEndingOnLine == List.safeLast multiline) multilineEndingOnLine
           )
 
-    showMultiline _ [] = mempty
+    showMultiline _ [] = emptyDoc
     showMultiline isLastMultiline multiline =
       let colorOfFirstMultilineMarker = markerColor isError . snd <$> List.safeHead multiline
           -- take the color of the last multiline marker in case we need to add additional bars
@@ -374,7 +396,7 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
 
           prefixWithBar color = prefix <> maybe id annotate color (if withUnicode then "│ " else "| ")
 
-          showMultilineMarkerMessage (_, Blank) _ = mempty
+          showMultilineMarkerMessage (_, Blank) _ = emptyDoc
           showMultilineMarkerMessage (_, marker) isLast =
             annotate (markerColor isError marker) $
               ( if isLast && isLastMultiline
@@ -428,24 +450,29 @@ getLine_ files markers line tabSize isError =
     mkWidthTable :: String -> WidthTable
     mkWidthTable s = listArray (1, length s) (ifTab tabSize wcwidth <$> s)
 
+    wcwidth :: Char -> Int
+    wcwidth c@(W.wcwidth -> w)
+      | w >= 0    = w
+      | otherwise = error (printf "negative width for '%c' (0x%04x)" c (ord c))
+
 -- |
 showAllMarkersInLine :: Pretty msg => Bool -> Bool -> (Doc Annotation -> Doc Annotation) -> Bool -> Bool -> Int -> WidthTable -> [(Position, Marker msg)] -> Doc Annotation
-showAllMarkersInLine _ _ _ _ _ _ _ [] = mempty
+showAllMarkersInLine _ _ _ _ _ _ _ [] = emptyDoc
 showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUnicode isError leftLen widths ms =
   let maxMarkerColumn = snd $ end $ fst $ List.last $ List.sortOn (snd . end . fst) ms
       specialPrefix
         | inSpanOfMultiline = colorMultilinePrefix (if withUnicode then "│ " else "| ") <> space
         | hasMultilines = colorMultilinePrefix "  " <> space
-        | otherwise = mempty
+        | otherwise = emptyDoc
    in -- get the maximum end column, so that we know when to stop looking for other markers on the same line
-      hardline <+> dotPrefix leftLen withUnicode <+> (if List.null ms then mempty else specialPrefix <> showMarkers 1 maxMarkerColumn <> showMessages specialPrefix ms maxMarkerColumn)
+      hardline <+> dotPrefix leftLen withUnicode <+> (if List.null ms then emptyDoc else specialPrefix <> showMarkers 1 maxMarkerColumn <> showMessages specialPrefix ms maxMarkerColumn)
   where
     widthAt i = 0 `fromMaybe` safeArrayIndex i widths
     widthsBetween start end =
       sum $ take (end - start) $ drop (start - 1) $ Array.elems widths
 
     showMarkers n lineLen
-      | n > lineLen = mempty -- reached the end of the line
+      | n > lineLen = emptyDoc -- reached the end of the line
       | otherwise =
         let allMarkers = flip filter ms \(Position (_, bc) (_, ec) _, mark) -> mark /= Blank && n >= bc && n < ec
          in -- only consider markers which span onto the current column
@@ -461,7 +488,7 @@ showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUn
                   <> showMarkers (n + 1) lineLen
 
     showMessages specialPrefix ms lineLen = case List.safeUncons ms of
-      Nothing -> mempty -- no more messages to show
+      Nothing -> emptyDoc -- no more messages to show
       Just ((Position b@(_, bc) _ _, msg), pipes) ->
         let filteredPipes = filter (uncurry (&&) . bimap ((/= b) . begin) (/= Blank)) pipes
             -- record only the pipes corresponding to markers on different starting positions
@@ -525,9 +552,10 @@ showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUn
 -- |
 replaceLinesWith :: Doc ann -> Doc ann -> Doc ann
 replaceLinesWith repl Line = repl
-replaceLinesWith _ Fail = Fail
-replaceLinesWith _ Empty = Empty
-replaceLinesWith _ (Char c) = Char c
+replaceLinesWith _    Fail = Fail
+replaceLinesWith _    Empty = Empty
+replaceLinesWith repl (Char '\n') = repl
+replaceLinesWith _    (Char c) = Char c
 replaceLinesWith repl (Text _ s) =
   let lines = Text.split (== '\n') s <&> \txt -> Text (Text.length txt) txt
    in mconcat (List.intersperse repl lines)
@@ -565,18 +593,18 @@ markerMessage Blank = undefined
 
 -- | Pretty prints all hints.
 prettyAllHints :: Pretty msg => [Note msg] -> Int -> Bool -> Doc Annotation
-prettyAllHints [] _ _ = mempty
+prettyAllHints [] _ _ = emptyDoc
 prettyAllHints (h : hs) leftLen withUnicode =
   {-
         A hint is composed of:
-        (1)         : Hint: <hint message>
+        (1)         = hint: <hint message>
   -}
-  let prefix = hardline <+> pipePrefix leftLen withUnicode
-   in prefix <+> annotate HintColor (notePrefix h <+> replaceLinesWith (prefix <+> "      ") (pretty $ noteMessage h))
+  let prefix = hardline <+> hintBullet leftLen
+   in prefix <+> annotate HintColor (notePrefix h <+> pretty (noteMessage h))
         <> prettyAllHints hs leftLen withUnicode
   where
-    notePrefix (Note _) = "Note:"
-    notePrefix (Hint _) = "Hint:"
+    notePrefix (Note _) = "note:"
+    notePrefix (Hint _) = "hint:"
 
     noteMessage (Note msg) = msg
     noteMessage (Hint msg) = msg

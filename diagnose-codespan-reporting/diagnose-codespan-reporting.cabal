@@ -28,6 +28,8 @@ library
       Error.Diagnose.Layout.CodeSpanReporting
   other-modules:
       Data.List.Safe
+      Error.Diagnose.Layout.CodeSpanReporting.Config
+      Error.Diagnose.Layout.CodeSpanReporting.Render
       Paths_diagnose_codespan_reporting
   hs-source-dirs:
       src
