@@ -1,5 +1,6 @@
 .stack-work/
 *~
+dist-newstyle/
 
 *.lock
 # This is a lib, we'd rather not commit the lock file...
