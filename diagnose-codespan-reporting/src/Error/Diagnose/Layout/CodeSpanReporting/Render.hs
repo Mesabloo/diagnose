@@ -1,32 +1,35 @@
 {-# LANGUAGE NamedFieldPuns   #-}
 {-# LANGUAGE RecordWildCards  #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TupleSections    #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns     #-}
-{-# LANGUAGE DerivingVia      #-}
 module Error.Diagnose.Layout.CodeSpanReporting.Render where
 
 import Error.Diagnose.Layout.CodeSpanReporting.Config
 
-import qualified Data.Array.IArray as A (array, bounds, (!))
+import qualified Data.Array.IArray as A (Array, array, bounds, (!))
 import qualified Data.HashMap.Lazy as H ((!?))
+import qualified Data.List.NonEmpty as N (cons, head, singleton, toList)
 import qualified Data.Text as T (length, split)
+
+import Control.Arrow ((&&&))
 import Data.Array.Unboxed (UArray)
+import Data.Bifunctor (bimap, second)
 import Data.Char (isSpace, ord)
 import Data.Char.WCWidth (wcwidth)
 import Data.Foldable (maximumBy)
 import Data.Function (on)
-import Data.List (groupBy, nub, sort, sortOn, dropWhileEnd, intersperse)
-import Data.Maybe (isJust, fromJust)
+import Data.List (dropWhileEnd, groupBy, intersperse, nub, sort, sortOn, uncons, unfoldr)
+import Data.Maybe (fromJust, isJust)
 import Data.Ord (comparing)
-import Control.Arrow ((&&&))
 import Text.Printf (printf)
 
-import Error.Diagnose (Position(..), Marker(..), Report(..), Note, align, hsep)
-import qualified Error.Diagnose as E (Note(Note, Hint))
+import qualified Error.Diagnose as E (Note (Hint, Note))
+
+import Error.Diagnose (Marker (..), Note, Position (..), Report (..), align, hsep)
 import Error.Diagnose.Layout (FileMap)
-import Prettyprinter (Doc, Pretty(..), (<+>), annotate, brackets, emptyDoc, colon, space, hardline, column, fill)
-import Prettyprinter.Internal (Doc(..))
+import Prettyprinter (Doc, Pretty (..), annotate, brackets, colon, column, emptyDoc, fill, hardline, space, (<+>))
+import Prettyprinter.Internal (Doc (..))
 
 unicodeWidth :: Int -> Int -> Char -> Int
 unicodeWidth tabSize col c@(wcwidth -> w)
@@ -94,6 +97,61 @@ takeNAndOthers n (first : rest) = pretty first <> go (pred n) rest
         go 0 others   = ", and " <> pretty (length others) <> " other(s)"
         go k (x : xs) = ", " <> pretty x <> go (pred k) xs
 
+{-
+  Basic Common Types
+  ==================
+
+  These should be self-documenting.
+  Note that 'Line', 'Colomn', 'Range', etc. are all type synonyms only.
+-}
+
+type Line = Int
+type Column = Int
+type Range a = (a, a)
+
+inRange :: Ord a => a -> Range a -> Bool
+x `inRange` (l, r) = l <= x && x <= r
+
+isOverlapping :: Ord a => Range a -> Range a -> Bool
+isOverlapping (l1, r1) (l2, r2) = r1 >= l2 && r2 >= l1
+
+combineRange :: Ord a => Range a -> Range a -> Range a
+combineRange (l1, r1) (l2, r2) = (min l1 l2, max r1 r2)
+
+type SingleMarker msg = (Range Column, Marker msg)
+type MultiMarker msg = (Range (Line, Column), Marker msg)
+
+linesForMulti :: MultiMarker msg -> [Line]
+linesForMulti (((lnS, _), (lnE, _)), _) = [lnS, lnE]
+
+linesForMultis :: [MultiMarker msg] -> [Line]
+linesForMultis = nub . sort . concatMap linesForMulti
+
+{-
+  Overall Process
+  ===============
+
+  1. Classify single-line and multi-line markers
+
+  - Single-line markers: @(Line, (Range Column, Marker msg))@
+  - Multi-line markers: @(Range (Line, Column), Marker msg)@
+
+  2. Group multi-line markers into disjoint groups
+
+  - @(_, (ln1E, _))@ and @((ln2S, _), _)@ are "disjoint" iff @ln1E < ln2S@
+  - Each group of multi-line markers can be laid out separately
+
+  3. Extract lines of interest
+
+  - start and end lines of multi-line markers
+  - lines of single-line markers
+  - padding lines: existence of @n@ and @n + 2@ implies existence of @n@
+
+  4. Associate each line with its single-line markers and multi-line markers in its group (determined in 2)
+
+  5. Render each line with the associated markers
+-}
+
 report :: Pretty msg => FileMap -> Chars -> Int -> Report msg -> Doc Annotation
 report fileMap chars@Chars{ cNoteBullet, cSourceBorderLeft }
   tabSize (reportComponents -> (sev, code, msg, markers, notes))
@@ -109,31 +167,20 @@ report fileMap chars@Chars{ cNoteBullet, cSourceBorderLeft }
           . groupBy ((==) `on` file . fst)
           . sortOn (posToTriple . fst)
         posToTriple Position{ begin, end, file } = (file, begin, end)
-        renderFile (fileName, thisMarkers@(classifyMarkers -> (groupSingles -> singleWithLines, multis)))
+        renderFile (fileName, thisMarkers)
           | Just fileLines <- fileMap H.!? fileName
-          , missingLines <- filter (not . (`inRange` A.bounds fileLines) . pred) lineNumbers
-          = if null missingLines then
-            let go (b, ln, singles) = sourceLine chars tabSize b ln maxLnWidth (fileLines A.! pred ln) sev singles multis
-            in snippetStart chars maxLnWidth startPos <> foldMap go allLines <> trailingLeftBorder
+          , let (singles, multis) = classifyAndGroupMarkers fileLines thisMarkers
+          , let markedLines = linesOfInterest fileLines singles multis
+          , let maxMultiCount = maximum (0 : map (length . nonBlank . snd) multis)
+          , let missingLines = filter (not . (`inRange` A.bounds fileLines) . pred) allLines
+          , let go = sourceLine chars tabSize maxLnWidth maxMultiCount sev
+          = if null missingLines
+          then snippetStart chars maxLnWidth startPos <> foldMap go markedLines <> trailingLeftBorder
           else makeBug ("line " <> takeNAndOthers 2 missingLines <> " of file '" <> pretty fileName <> "' not available")
           | otherwise = makeBug ("content of file '" <> pretty fileName <> "' not available")
-          where lineNumbers = map fst singleWithLines ++ concatMap linesForMulti multis
-                allLines = fillGap $ merge singleWithLines $ nub $ sort $ concatMap linesForMulti multis
-                merge []       ys       = map (, []) ys
-                merge xs       []       = xs
-                merge (x : xs) (y : ys) = case compare (fst x) y of
-                  LT -> x : merge xs (y : ys)
-                  EQ -> x : merge xs ys
-                  GT -> (y, []) : merge (x : xs) ys
-                fillGap ((lnX, x) : xs@((lnY, _) : _))
-                  | lnX + 1 == lnY = (True, lnX, x) : fillGap xs
-                  | lnX + 2 == lnY = (True, lnX, x) : (True, succ lnX, []) : fillGap xs
-                  | otherwise = (True, lnX, x) : (False, succ lnX, []) : fillGap xs
-                fillGap xs = map (\(ln, t) -> (True, ln, t)) xs
-                linesForMulti (((lnS, _), (lnE, _)), _) = [lnS, lnE]
+          where allLines = nub $ sort $ concatMap (\(Position{..}, _) -> [fst begin, fst end]) thisMarkers
                 startPos = fst (head thisMarkers)
                 makeBug s = leftPadding <+> annotate (Header Bug) "bug" <> annotate HeaderMessage (colon <+> s) <> hardline
-        groupSingles = map (fst . head &&& map snd) . groupBy ((==) `on` fst)
         renderNote nt
           -- '  = <kind>: <message>'
           = leftPadding <+> annotate NoteBullet (pretty cNoteBullet)
@@ -147,10 +194,112 @@ partitionEither p = foldr go ([], [])
   where go (p -> Left b)  ~(bs, cs) = (b : bs, cs)
         go (p -> Right c) ~(bs, cs) = (bs, c : cs)
 
+-- | 1. Classify single-line and multi-line markers
 classifyMarkers :: [(Position, Marker msg)] -> ([(Line, SingleMarker msg)], [MultiMarker msg])
 classifyMarkers = partitionEither \(pos, marker) ->
   let Position{ begin = begin@(lnS, colS), end = end@(lnE, colE) } = pos
   in if lnS == lnE then Left (lnS, ((colS, colE), marker)) else Right ((begin, end), marker)
+
+classifyAndGroupMarkers :: A.Array Int String -> [(Position, Marker msg)] -> ([(Line, [SingleMarker msg])], [MultiGroup msg])
+classifyAndGroupMarkers fileLines = bimap groupSingles (groupMultis fileLines) . classifyMarkers
+
+-- | 2. Group multi-line markers into disjoint groups
+--
+--   Note: The input is expected to be sorted, but we cannot use 'groupBy' because it gives incorrect semantics.
+groupMultis :: A.Array Int String -> [MultiMarker msg] -> [MultiGroup msg]
+groupMultis fileLines = map (second N.toList) . foldr combine [] . scanlAndLabel label (-1) -- go (-1)
+  where label maxSoFar this = maxSoFar `max` endLine this
+        combine (_,    this) [] = [(lineRange this, N.singleton this)]
+        combine (maxE, this) res@((rng, g) : rest)
+          -- decide: whether group [.. this] overlaps with the next one
+          -- overlapping, push 'this' onto the group (starting with 'this')
+          | lnS < maxE || (lnS == maxE && colS <= leadingSpaces)
+            = (combineRange thisRng rng, N.cons this g) : rest
+          -- not overlapping, start a new group (ending with 'this')
+          -- note: we have already sorted the markers,
+          | otherwise = (thisRng, N.singleton this) : res
+          where thisRng = lineRange this
+                lnS = startLine (N.head g)
+                colS = startCol (N.head g)
+                text = fileLines A.! pred lnS
+                leadingSpaces = length (takeWhile isSpace text)
+        -- go _ [] = []
+        -- go lnM (this : rest)
+        --   | g : gs <- res, startLine g < lnM = res'
+        --   | g : gs <- res, startLine g == lnM = (rng, [this]) : res'
+        --   | otherwise = (rng, [this]) : res
+        --   where rng@(_, lnE) = lineRange this
+        --         startLine ((lnS, _), _) = lnS
+        --         lnM' = lnM `max` lnE
+        --         res = go lnM' rest
+        --         res' = bimap (combineRange (lineRange this)) (this :) g : gs
+        lineRange (((lnS, _), (lnE, _)), _) = (lnS, lnE)
+        startCol (((_, colS), _), _) = colS
+        startLine = fst . lineRange
+        endLine = snd . lineRange
+
+scanlAndLabel :: (b -> a -> b) -> b -> [a] -> [(b, a)]
+scanlAndLabel f e0 = unfoldr go . (e0, )
+  where go (_, [])     = Nothing
+        go (e, x : xs) = let e' = f e x in Just ((e', x), (e', xs))
+
+type MultiGroup msg = (Range Line, [MultiMarker msg])
+
+linesForMultiGroups :: [MultiGroup msg] -> [Line]
+linesForMultiGroups = nub . concatMap (nub . sort . concatMap linesForMulti . snd)
+
+groupSingles :: [(Line, SingleMarker msg)] -> [(Line, [SingleMarker msg])]
+groupSingles = map (fst . head &&& map snd) . groupBy ((==) `on` fst)
+
+-- | 3. Extract lines of interest
+--   4. Associate each line with its single-line markers and multi-line markers in its group (determined in 2)
+--
+--   note: 'error' if there are missing lines. Check before use.
+linesOfInterest :: A.Array Int String -> [(Line, [SingleMarker msg])] -> [MultiGroup msg] -> [MarkedLine msg]
+linesOfInterest fileLines singles multiGroups = unfoldr go (theLines, multiGroups)
+  where theLines = fillGap (mergeMarkers singles (linesForMultiGroups multiGroups))
+        go ([], _) = Nothing
+        go (ls, []) = go (ls, [((maxBound, maxBound), [])])
+        go (ls@(l : ls'), gs@(((lnS, lnE), nonBlank -> multiMarkers) : gs'))
+          | lineNumber < lnS = Just (MarkedLine{multiMarkers = [], nextMarkers = multiMarkers, ..}, (ls', gs))
+          | lineNumber > lnE = go (ls, gs')
+          | otherwise = Just (MarkedLine{..}, (ls', gs))
+          where (isRealSource, lineNumber, nonBlank -> singleMarkers) = l
+                lineText = fileLines A.! pred lineNumber
+                nextMarkers = maybe [] (nonBlank . snd . fst) (uncons gs')
+
+data MarkedLine msg = MarkedLine
+  { isRealSource  :: !Bool
+  , lineNumber    :: {-# UNPACK #-} !Line
+  , lineText      :: String
+  , singleMarkers :: [SingleMarker msg]
+  , multiMarkers  :: [MultiMarker msg]
+  , nextMarkers   :: [MultiMarker msg]
+  }
+
+mergeMarkers :: [(Line, [SingleMarker msg])] -> [Line] -> [(Line, [SingleMarker msg])]
+mergeMarkers []       ys       = map (, []) ys
+mergeMarkers xs       []       = xs
+mergeMarkers (x : xs) (y : ys) = case compare (fst x) y of
+  LT -> x : mergeMarkers xs (y : ys)
+  EQ -> x : mergeMarkers xs ys
+  GT -> (y, []) : mergeMarkers (x : xs) ys
+
+fillGap :: [(Line, [SingleMarker msg])] -> [(Bool, Line, [SingleMarker msg])]
+fillGap ((lnX, x) : xs@((lnY, _) : _))
+  | lnX + 1 == lnY = (True, lnX, x) : fillGap xs
+  | lnX + 2 == lnY = (True, lnX, x) : (True, succ lnX, []) : fillGap xs
+  | otherwise = (True, lnX, x) : (False, succ lnX, []) : fillGap xs
+fillGap xs = map (\(ln, t) -> (True, ln, t)) xs
+
+{-
+  Report structure
+  ================
+
+  1. One header (severity, error code, and message)
+  2. One sub-report for each mentioned file
+  3. Notes and helps attached to this report
+-}
 
 header :: Pretty msg => Severity -> Maybe msg -> msg -> Doc Annotation
 header sev code msg
@@ -172,20 +321,7 @@ padWith w t f = pretty (replicate (w - length t) ' ') <> f (pretty t)
 pad :: Int -> String -> Doc ann
 pad w t = padWith w t id
 
-type Line = Int
-type Column = Int
-type Range a = (a, a)
-
-inRange :: Ord a => a -> Range a -> Bool
-x `inRange` (l, r) = l <= x && x <= r
-
-isOverlapping :: Ord a => Range a -> Range a -> Bool
-isOverlapping (l1, r1) (l2, r2) = r1 >= l2 && r2 >= l1
-
-type SingleMarker msg = (Range Column, Marker msg)
-type MultiMarker msg = (Range (Line, Column), Marker msg)
-
--- note: we allow a one-pass-the-end index (to allow place a caret here)
+-- note: we allow a one-pass-the-end index (to allow placing a caret here)
 mkWidthTable :: Int -> String -> UArray Int Int
 mkWidthTable tabSize s = A.array (1, length s + 1) $ zip [1..] $ scanl go 0 s
   where go n c = n + unicodeWidth tabSize n c
@@ -207,16 +343,14 @@ sourceLine
   :: Pretty msg
   => Chars
   -> Int      -- ^ tab size.
-  -> Bool     -- ^ 'True' - real source line; 'False' - gap.
-  -> Int      -- ^ line number.
   -> Int      -- ^ width for the line number.
-  -> String   -- ^ source code.
+  -> Int      -- ^ maximum number of multi-line markers.
   -> Severity -- ^ severity of the message for this line.
-  -> [SingleMarker msg] -- single-line markers.
-  -> [MultiMarker msg]  -- multi-line markers.
+  -> MarkedLine msg
   -> Doc Annotation
-sourceLine Chars{..} tabSize isRealSource ln lnWidth
-  (trimEnd -> text) sev (nonBlank -> singles) (nonBlank -> multis)
+sourceLine Chars{..} tabSize lnWidth maxMultiCount sev
+  MarkedLine{ isRealSource, lineNumber = ln, lineText = (trimEnd -> text)
+            , singleMarkers = singles, multiMarkers = multis, nextMarkers }
   -- > 10 │   │ muffin. Halvah croissant candy canes bonbon candy. Apple pie jelly
   = headLeader <+> attachColour text <> hardline
   -- >    │   │ ^^^^^^  -------^^^^^^^^^-------^^^^^------- ^^^^^ trailing label message
@@ -231,12 +365,14 @@ sourceLine Chars{..} tabSize isRealSource ln lnWidth
       <> drawDanglingMsgs (pred nDanglingMsgs))
   -- >    │ ╭─│─────────^
   <> foldMap renderMultiTopBottom (indexed multis)
+  <> foldMap renderMultiTopBottom (indexed nextMarkers)
   where
+    paddingForMultis = pad (2 * (maxMultiCount - length multis)) ""
     headLeader = lineNumber <+> leaders True
     tailLeader = pad lnWidth "" <+> leaders False
     lineNumber = if isRealSource then padWith lnWidth (show ln) (annotate LineNumber) else pad lnWidth ""
     -- handle leading multi-line markers
-    leaders isSource = border <+> hsep (map (leadingMarker isSource) multis)
+    leaders isSource = border <+> paddingForMultis <> hsep (map (leadingMarker isSource) multis)
     border = annotate SourceBorder (pretty if isRealSource then cSourceBorderLeft else cSourceBorderLeftBreak)
     leadingMarker isSource (((lnS, colS), (lnE, _)), markerStyle -> st)
       | lnS == ln, colS <= leadingSpaces, isSource = ann (pretty cMultiTopLeft)
@@ -317,7 +453,7 @@ sourceLine Chars{..} tabSize isRealSource ln lnWidth
       | lnE == ln = multiLeader True <> ann outerSt (replicate (pred colE) cMultiBottom ++ [ed]) <+> pMsg <> hardline
       | isStart = multiLeader True <> ann outerSt (replicate (pred colS) cMultiTop ++ [st]) <> hardline
       | otherwise = emptyDoc
-      where leader = pad lnWidth "" <+> border
+      where leader = pad lnWidth "" <+> border <> paddingForMultis
             multiLeader isMain = leader <+> foldMap (multiMarkerLeft isMain) (indexed multis)
             isStart = lnS == ln && colS > leadingSpaces
             cBar = if isStart then cMultiTop else cMultiBottom
@@ -342,8 +478,9 @@ sourceLine Chars{..} tabSize isRealSource ln lnWidth
 
 trim, trimStart, trimEnd :: String -> String
 trim = trimStart . trimEnd
-trimStart = dropWhile isSpace 
+trimStart = dropWhile isSpace
 trimEnd = dropWhileEnd isSpace
+
 -- WARN: uses the internal of the library 'prettyprinter'
 --
 --       DO NOT use a wildcard here, in case the internal API exposes one more constructor
