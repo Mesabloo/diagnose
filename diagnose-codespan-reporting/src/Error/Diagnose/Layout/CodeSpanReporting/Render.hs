@@ -223,16 +223,6 @@ groupMultis fileLines = map (second N.toList) . foldr combine [] . scanlAndLabel
                 colS = startCol (N.head g)
                 text = fileLines A.! pred lnS
                 leadingSpaces = length (takeWhile isSpace text)
-        -- go _ [] = []
-        -- go lnM (this : rest)
-        --   | g : gs <- res, startLine g < lnM = res'
-        --   | g : gs <- res, startLine g == lnM = (rng, [this]) : res'
-        --   | otherwise = (rng, [this]) : res
-        --   where rng@(_, lnE) = lineRange this
-        --         startLine ((lnS, _), _) = lnS
-        --         lnM' = lnM `max` lnE
-        --         res = go lnM' rest
-        --         res' = bimap (combineRange (lineRange this)) (this :) g : gs
         lineRange (((lnS, _), (lnE, _)), _) = (lnS, lnE)
         startCol (((_, colS), _), _) = colS
         startLine = fst . lineRange
