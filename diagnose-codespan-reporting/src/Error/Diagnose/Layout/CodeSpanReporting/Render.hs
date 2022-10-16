@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns   #-}
+{-# LANGUAGE PatternSynonyms  #-}
 {-# LANGUAGE RecordWildCards  #-}
 {-# LANGUAGE TupleSections    #-}
 {-# LANGUAGE TypeApplications #-}
@@ -14,19 +15,19 @@ import qualified Data.Text as T (length, split)
 
 import Control.Arrow ((&&&))
 import Data.Array.Unboxed (UArray)
-import Data.Bifunctor (bimap, second)
+import Data.Bifunctor (bimap, first, second)
 import Data.Char (isSpace, ord)
 import Data.Char.WCWidth (wcwidth)
 import Data.Foldable (maximumBy)
 import Data.Function (on)
 import Data.List (dropWhileEnd, groupBy, intersperse, nub, sort, sortOn, uncons, unfoldr)
-import Data.Maybe (fromJust, isJust)
+import Data.Maybe (fromJust, isJust, mapMaybe)
 import Data.Ord (comparing)
 import Text.Printf (printf)
 
-import qualified Error.Diagnose as E (Note (Hint, Note))
+import qualified Error.Diagnose as E (Note (..), Severity (..))
 
-import Error.Diagnose (Marker (..), Note, Position (..), Report (..), align, hsep)
+import Error.Diagnose (NoteMarker (..), Position (..), Report (..), SimpleMarker (..), align, hsep)
 import Error.Diagnose.Layout (FileMap)
 import Prettyprinter (Doc, Pretty (..), annotate, brackets, colon, column, emptyDoc, fill, hardline, space, (<+>))
 import Prettyprinter.Internal (Doc (..))
@@ -35,6 +36,12 @@ unicodeWidth :: Int -> Int -> Char -> Int
 unicodeWidth tabSize col c@(wcwidth -> w)
   | w >= 0    = w
   | c == '\t' = (col `div` tabSize + 1) * tabSize - col
+  | otherwise = error (printf "negative width for '%c' (0x%04x)" c (ord c))
+
+simpleWidth :: Char -> Int
+simpleWidth c@(wcwidth -> w)
+  | w >= 0    = w
+  | c == '\t' = error "simpleWidth: cannot handle tab character"
   | otherwise = error (printf "negative width for '%c' (0x%04x)" c (ord c))
 
 data Severity
@@ -63,35 +70,26 @@ data Annotation
   deriving (Show, Eq)
 
 data MarkerStyle
-  = SThis
-  | SWhere
-  | SMaybe
+  = SAdd
+  | SRemove
+  | SPrimary
+  | SSecondary
   | SBlank
   deriving (Show, Eq, Ord)
+
+data Marker msg = Marker
+  { markerStyle     :: MarkerStyle
+  , markerMessage   :: Maybe msg
+  , markerInsertion :: Maybe String
+  } deriving (Show)
 
 nonBlank :: [(a, Marker msg)] -> [(a, Marker msg)]
 nonBlank = filter ((/= SBlank) . markerStyle . snd)
 
-markerStyle :: Marker msg -> MarkerStyle
-markerStyle (This  _) = SThis
-markerStyle (Where _) = SWhere
-markerStyle (Maybe _) = SMaybe
-markerStyle Blank     = SBlank
-
-markerMessage :: Marker msg -> Maybe msg
-markerMessage (This  msg) = Just msg
-markerMessage (Where msg) = Just msg
-markerMessage (Maybe msg) = Just msg
-markerMessage Blank       = Nothing
-
-reportComponents :: Report msg -> (Severity, Maybe msg, msg, [(Position, Marker msg)], [Note msg])
-reportComponents (Warn code msg markers notes) = (Warning, code, msg, markers, notes)
-reportComponents (Err  code msg markers notes) = (Error,   code, msg, markers, notes)
-
 takeNAndOthers :: Pretty a => Int -> [a] -> Doc ann
-takeNAndOthers 0 _              = error "takeNAndOthers: cannot take 0"
-takeNAndOthers _ []             = error "takeNAndOthers: empty list"
-takeNAndOthers n (first : rest) = pretty first <> go (pred n) rest
+takeNAndOthers 0 _           = error "takeNAndOthers: cannot take 0"
+takeNAndOthers _ []          = error "takeNAndOthers: empty list"
+takeNAndOthers n (x0 : rest) = pretty x0 <> go (pred n) rest
   where go _ []       = emptyDoc
         go 0 [x]      = ", and " <> pretty x
         go 0 others   = ", and " <> pretty (length others) <> " other(s)"
@@ -108,6 +106,9 @@ takeNAndOthers n (first : rest) = pretty first <> go (pred n) rest
 type Line = Int
 type Column = Int
 type Range a = (a, a)
+
+mapRange :: (a -> b) -> Range a -> Range b
+mapRange f = bimap f f
 
 inRange :: Ord a => a -> Range a -> Bool
 x `inRange` (l, r) = l <= x && x <= r
@@ -150,13 +151,57 @@ linesForMultis = nub . sort . concatMap linesForMulti
   4. Associate each line with its single-line markers and multi-line markers in its group (determined in 2)
 
   5. Render each line with the associated markers
+
+  6. Render notes and helps (no markers: inline; with markers: sub-report)
 -}
 
+data GenReport msg = GenReport
+  { reportSeverity   :: Severity
+  , reportErrorCode  :: Maybe msg
+  , reportMessage    :: msg
+  , reportMarkers    :: [(Position, Marker msg)]
+  , reportNotes      :: [(Severity, msg)]
+  , reportSubReports :: [GenReport msg]
+  }
+
+reportToGenReport :: Report msg -> GenReport msg
+reportToGenReport (Report sev reportErrorCode reportMessage markers notes) = GenReport{..}
+  where reportSeverity = case sev of
+          E.Warning  -> Warning
+          E.Error    -> Error
+          E.Critical -> Bug
+        reportMarkers = map (second simpleMarkerToMarker) markers
+        classifyNote (noteSev, msg, m)
+          | null m = Left (noteSev, msg)
+          | otherwise = Right (noteToGenReport noteSev msg m)
+        noteToTriple (E.Note msg ms) = (Note, msg, ms)
+        noteToTriple (E.Hint msg ms) = (Help, msg, ms)
+        (reportNotes, reportSubReports) = partitionEither (classifyNote . noteToTriple) notes
+
+simpleMarkerToMarker :: SimpleMarker msg -> Marker msg
+simpleMarkerToMarker (Primary msg)   = Marker SPrimary (Just msg) Nothing
+simpleMarkerToMarker (Secondary msg) = Marker SSecondary (Just msg) Nothing
+simpleMarkerToMarker Blank           = Marker SBlank Nothing Nothing
+
+noteToGenReport :: Severity -> msg -> [(Position, NoteMarker msg)] -> GenReport msg
+noteToGenReport reportSeverity reportMessage (map (second noteMarkerToMarker) -> reportMarkers)
+  = GenReport{reportErrorCode = Nothing, reportNotes = [], reportSubReports = [], ..}
+
+noteMarkerToMarker :: NoteMarker msg -> Marker msg
+noteMarkerToMarker (AddCode text msg) = Marker SAdd (Just msg) (Just text)
+noteMarkerToMarker (RemoveCode msg)   = Marker SRemove (Just msg) Nothing
+noteMarkerToMarker (Annotate msg)     = Marker SSecondary (Just msg) Nothing
+
 report :: Pretty msg => FileMap -> Chars -> Int -> Report msg -> Doc Annotation
-report fileMap chars@Chars{ cNoteBullet, cSourceBorderLeft }
-  tabSize (reportComponents -> (sev, code, msg, markers, notes))
+report fileMap chars tabSize = genReport fileMap chars tabSize . reportToGenReport
+
+genReport :: Pretty msg => FileMap -> Chars -> Int -> GenReport msg -> Doc Annotation
+genReport fileMap chars@Chars{ cSourceBorderLeft } tabSize
+  GenReport{ reportSeverity = sev, reportErrorCode = code, reportMessage = msg
+           , reportMarkers = markers, reportNotes = notes, reportSubReports = subReports }
   = header sev code msg <> foldMap renderFile groups
-  <> foldMap renderNote notes
+  <> foldMap (renderInlineNote chars maxLnWidth) notes
+  <> foldMap (genReport fileMap chars tabSize) subReports
   where groups = sortMarkers markers
         maxLnWidth = length $ show $ maximum $ 0 : concatMap go markers
           where go (Position{ begin, end }, _) = [fst begin, snd end]
@@ -181,13 +226,6 @@ report fileMap chars@Chars{ cNoteBullet, cSourceBorderLeft }
           where allLines = nub $ sort $ concatMap (\(Position{..}, _) -> [fst begin, fst end]) thisMarkers
                 startPos = fst (head thisMarkers)
                 makeBug s = leftPadding <+> annotate (Header Bug) "bug" <> annotate HeaderMessage (colon <+> s) <> hardline
-        renderNote nt
-          -- '  = <kind>: <message>'
-          = leftPadding <+> annotate NoteBullet (pretty cNoteBullet)
-          <+> pretty @String noteLevel <> colon <+> align (pretty noteMsg) <> hardline
-          where (noteLevel, noteMsg) = case nt of
-                  E.Hint m -> ("hint", m)
-                  E.Note m -> ("note", m)
 
 partitionEither :: (a -> Either b c) -> [a] -> ([b], [c])
 partitionEither p = foldr go ([], [])
@@ -325,6 +363,39 @@ filterIndex p = map snd . filter (p . fst) . indexed
 filterIndexed :: (a -> Bool) -> [a] -> [(Int, a)]
 filterIndexed p = filter (p . snd) . indexed
 
+-- | 6. Render notes and helps (no markers: inline; with markers: sub-report)
+renderInlineNote :: Pretty msg => Chars -> Int -> (Severity, msg) -> Doc Annotation
+renderInlineNote Chars{ cNoteBullet } maxLnWidth (noteSev, noteMsg)
+  -- '  = <kind>: <message>'
+  = pad maxLnWidth "" <+> annotate NoteBullet (pretty cNoteBullet)
+  <+> pretty noteSev <> colon <+> align (pretty noteMsg) <> hardline
+
+data ExtColumn = ExtColumn
+  { realColumn :: {-# UNPACK #-} !Int
+  , extColumn  :: {-# UNPACK #-} !Int
+  } deriving (Show, Eq, Ord)
+
+pattern RealColumn :: Int -> ExtColumn
+pattern RealColumn n = ExtColumn{ realColumn = n, extColumn = 0 }
+
+nextColumn :: ExtColumn -> ExtColumn
+nextColumn ExtColumn{ realColumn } = ExtColumn{ realColumn = realColumn + 1, extColumn = 0 }
+
+mergeAscendingOn :: Ord k => (a -> k) -> [a] -> [a] -> [a]
+mergeAscendingOn key = go
+  where go []       ys       = ys
+        go xs       []       = xs
+        go (x : xs) (y : ys) = case compare (key x) (key y) of
+          LT -> x : go xs (y : ys)
+          EQ -> error "mergeAscendingOn: EQ"
+          GT -> y : go (x : xs) ys
+
+extendLast :: (a -> a) -> [a] -> [a]
+extendLast _ []          = error "extendLast: empty list"
+extendLast f (x0 : rest) = go x0 rest
+  where go x []       = [x, f x]
+        go x (y : xs) = x : go y xs
+
 -- | Rendered source line, with line number and multi-line markers on the left.
 --
 --   > 10 │   │ muffin. Halvah croissant candy canes bonbon candy. Apple pie jelly
@@ -342,10 +413,10 @@ sourceLine Chars{..} tabSize lnWidth maxMultiCount sev
   MarkedLine{ isRealSource, lineNumber = ln, lineText = (trimEnd -> text)
             , singleMarkers = singles, multiMarkers = multis, nextMarkers }
   -- > 10 │   │ muffin. Halvah croissant candy canes bonbon candy. Apple pie jelly
-  = headLeader <+> attachColour text <> hardline
+  = headLeader <+> attachColour decoratedText <> hardline
   -- >    │   │ ^^^^^^  -------^^^^^^^^^-------^^^^^------- ^^^^^ trailing label message
   <> (if null singles then emptyDoc else
-        tailLeader <+> drawMarkers text <> trailingMsgRendered <> hardline)
+        tailLeader <+> renderedMarkers <> trailingMsgRendered <> hardline)
   <> (if nDanglingMsgs == 0 then emptyDoc else
   -- >    │   │ │              │
          allPointerLines <> hardline
@@ -370,35 +441,46 @@ sourceLine Chars{..} tabSize lnWidth maxMultiCount sev
       | otherwise = space
       where ann = annotate (MarkerTint sev st)
     leadingSpaces = length (takeWhile isSpace text)
+    -- handle text insertion
+    decoratedText
+      = mergeAscendingOn fst insertions
+      $ zip (map RealColumn [1..])
+      $ zipWith handleTab [0..] text
+    insertions = concat (mapMaybe go singles)
+      where go ((l, _), m) = attachColumn l <$> markerInsertion m
+            attachColumn l = zip (map (ExtColumn l) [1..]) . zipWith handleTab [l - 1..]
     -- attach colour for the source code text
     attachColour
       = foldMap (renderSegment . (fst . head &&& concatMap snd))
       . groupBy ((==) `on` fst)
-      . zip (map styleOf [1..])
-      . zipWith handleTab [0..]
+      . map (first styleOf)
     handleTab k '\t' = replicate (unicodeWidth tabSize k '\t') ' '
     handleTab _ c    = [c]
     renderSegment (st, s) = annotate (SourceTint sev st) (pretty s)
     maxStyle = minimum . (SBlank :) . map (markerStyle . snd)
-    styleOf col =
-      let s = filter (inRange col . fst) singles
-          m = filter (inRange (ln, col) . fst) multis
-      in maxStyle s `min` maxStyle m
+    styleOf = uncurry min . (styleOfSingle &&& styleOfMulti)
+    styleOfMulti col = maxStyle $ filter (inRange (ln, col) . mapRange (second RealColumn) . fst) multis
+    styleOfSingle col = maxStyle sm
+      where sm = filter (\(rng, markerStyle -> m) -> inRange col (liftRange m rng)) singles
+            liftRange SAdd (l, r) = (ExtColumn l 1, ExtColumn l (r - l + 1))
+            liftRange _    rng    = mapRange RealColumn rng
     -- handle single-line markers
-    drawMarkers
+    renderedMarkers
       = foldMap renderMarker
-      . dropWhileEnd ((== SBlank) . fst)
-      . map (fst . head &&& sum . map snd)
-      . groupBy ((==) `on` fst)
-      . zip (map styleOfSingle [1..])
-      . (++ [1])
-      . zipWith (unicodeWidth tabSize) [0..]
+      $ dropWhileEnd ((== SBlank) . fst)
+      $ map (fst . head &&& sum . map snd)
+      $ groupBy ((==) `on` fst)
+      $ map (first styleOfSingle)
+      $ extendLast (bimap nextColumn (const 1))
+      $ map (second (sum . map simpleWidth)) decoratedText
     renderMarker (st, k) = ann (pretty (replicate k c))
-      where c | SThis <- st = cSinglePrimaryCaret
-              | SBlank <- st = ' '
-              | otherwise = cSingleSecondaryCaret
+      where c = case st of
+              SPrimary   -> cSinglePrimaryCaret
+              SSecondary -> cSingleSecondaryCaret
+              SAdd       -> cSingleAddCaret
+              SRemove    -> cSingleRemoveCaret
+              SBlank     -> ' '
             ann = if st == SBlank then id else annotate (MarkerTint sev st)
-    styleOfSingle col = maxStyle (filter (inRange col . fst) singles)
     trailingMsgRendered = maybe emptyDoc go trailingMsg
       where go (_, markerStyle &&& markerMessage -> (st, ~(Just msg)))
               = space <> align' st (pretty msg)
@@ -452,8 +534,12 @@ sourceLine Chars{..} tabSize lnWidth maxMultiCount sev
             outerSt = markerStyle outer
             annDoc = annotate (MarkerTint sev outerSt)
             ann m = annotate (MarkerTint sev m) . pretty
-            st = if markerStyle outer == SThis then cMultiPrimaryCaretStart else cMultiSecondaryCaretStart
-            ed = if markerStyle outer == SThis then cMultiPrimaryCaretEnd else cMultiSecondaryCaretEnd
+            (st, ed) = case markerStyle outer of
+              SPrimary   -> (cMultiPrimaryCaretStart, cMultiPrimaryCaretEnd)
+              SSecondary -> (cMultiSecondaryCaretStart, cMultiSecondaryCaretEnd)
+              SAdd       -> error "marker Add should not be multiline"
+              SRemove    -> (cMultiRemoveCaretStart, cMultiRemoveCaretEnd)
+              SBlank     -> error "impossible: unexpected Blank marker"
             multiMarkerLeft isMain (k', (((lnS', _), (lnE', _)), markerStyle -> inner))
               | through, k' < k            = ann inner cMultiLeft <> space
               | through                    = ann inner cMultiLeft <> pBar
