@@ -93,8 +93,7 @@ prettyReport' fileContent conf tabSize sev code message markers hints = do
 
   {- (4) -}
   prettyAllHints fileContent conf tabSize hints
-  when (null hints) do
-    tell hardline
+  tell hardline
   where
     printHeader Nothing = do
       tell $ prettySeverity sev
@@ -266,14 +265,14 @@ prettyAllHints _ _ _ [] = pure ()
 prettyAllHints files conf tabSize (h : hs) = do
   tell $ annotate NoteTint (notePrefix h) <> space
   tell $ align (pretty $ noteMessage h)
-  maybe (pure ()) pretty' (noteNotes h)
-  tell hardline
+  case noteNotes h of
+    Nothing -> do
+      tell hardline
+    Just n -> do
+      tell hardline
+      prettyMarker files conf tabSize Error False n
   prettyAllHints files conf tabSize hs
   where
-    pretty' m = do
-      tell hardline
-      prettyMarker files conf tabSize Error False m
-
     noteNotes (Note _ ns) = ns
     noteNotes (Hint _ ns) = ns
 

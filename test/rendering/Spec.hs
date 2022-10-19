@@ -91,9 +91,9 @@ main = do
   let diag = HashMap.foldlWithKey' addFile (foldl addReport def reports) files
 
   hPutStrLn stdout "\n\nWith unicode: ─────────────────────────\n"
-  printDiagnostic stdout True True 4 ariadneStyle ariadneLayout diag
+  printDiagnostic stdout True True 4 gccStyle gccLayout diag
   hPutStrLn stdout "\n\nWithout unicode: ----------------------\n"
-  printDiagnostic stdout False True 4 ariadneStyle ariadneLayout diag
+  printDiagnostic stdout False True 4 gccStyle gccLayout diag
 
 -- hPutStrLn stdout "\n\nAs JSON: ------------------------------\n"
 -- BS.hPutStr stdout (diagnosticToJson diag)
