@@ -1,10 +1,21 @@
-# Ariadne layout for Diagnose
+# Typescript layout for Diagnose
 
-This is an implementation of a custom layout for Diagnose, heavily inspired by [`ariadne`](https://github.com/zesterer/ariadne).
-As an example, here is a random test diagnostic:
+This is an implementation of a custom layout for Diagnose, heavily inspired by errors as rendered by Angular/Typescript.
 
-![real world example](https://raw.githubusercontent.com/Mesabloo/diagnose/custom-layouts/assets/real-world-example-unicode.png)
+Here are a few rendering examples:
 
-See how similar it is to `ariadne`:
+- A full example with multiline markers and code additions:
 
-![ariadne example](https://raw.githubusercontent.com/zesterer/ariadne/12759f0b5caa3963de73b899a6bbd9010d0a76f1/misc/example.png)
+  ![](https://raw.githubusercontent.com/mesabloo/diagnose/187cba90567b7de02ce7f509862752c944bd57b5/diagnose-typescript/assets/full-example.png)
+- When your compiler errors out for some reason:
+
+  ![](https://raw.githubusercontent.com/mesabloo/diagnose/187cba90567b7de02ce7f509862752c944bd57b5/diagnose-typescript/assets/critical-example.png)
+- The example taken from the [`ariadne`](https://github.com/zesterer/ariadne) repository:
+
+  ![](https://raw.githubusercontent.com/mesabloo/diagnose/187cba90567b7de02ce7f509862752c944bd57b5/diagnose-typescript/assets/ariadne-readme.png)
+- A random example:
+
+  ![](https://raw.githubusercontent.com/mesabloo/diagnose/187cba90567b7de02ce7f509862752c944bd57b5/diagnose-typescript/assets/random-example.png)
+- An ASCII-only rendering:
+
+  ![](https://raw.githubusercontent.com/mesabloo/diagnose/187cba90567b7de02ce7f509862752c944bd57b5/diagnose-typescript/assets/ascii-example.png)
