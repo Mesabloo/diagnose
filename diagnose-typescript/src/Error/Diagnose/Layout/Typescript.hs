@@ -79,7 +79,7 @@ prettyReport' fileContent conf tabSize sev code message markers hints = do
   unless (null blanks) do
     tell hardline
 
-  let doc = execWriter $ prettyAllHints fileContent conf tabSize hints
+  let doc = execWriter $ prettyAllHints fileContent conf tabSize sev hints
   tell $ indent 2 doc
   where
     printHeader Nothing = do
@@ -267,9 +267,9 @@ isBlankMarker _ = False
 {-# INLINE isBlankMarker #-}
 
 -- | Pretty prints all hints.
-prettyAllHints :: Pretty msg => FileMap -> Configuration -> Int -> [Note msg] -> Layouter ()
-prettyAllHints _ _ _ [] = pure ()
-prettyAllHints files conf tabSize (h : hs) = do
+prettyAllHints :: Pretty msg => FileMap -> Configuration -> Int -> Severity -> [Note msg] -> Layouter ()
+prettyAllHints _ _ _ _ [] = pure ()
+prettyAllHints files conf tabSize sev (h : hs) = do
   tell $ annotate NoteTint (notePrefix h)
   tell $ colon <> space
   tell $ align $ pretty (noteMessage h)
@@ -277,10 +277,10 @@ prettyAllHints files conf tabSize (h : hs) = do
   case noteNotes h of
     Nothing -> pure ()
     Just n -> do
-      let doc = execWriter $ prettyMarker files conf tabSize Error n
+      let doc = execWriter $ prettyMarker files conf tabSize sev n
       tell $ indent 2 doc
       tell hardline
-  prettyAllHints files conf tabSize hs
+  prettyAllHints files conf tabSize sev hs
   where
     noteNotes (Note _ ns) = ns
     noteNotes (Hint _ ns) = ns
