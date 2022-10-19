@@ -36,7 +36,8 @@ main = do
             ("unsized.nst", "main: forall(a: Ta, s: Ts, e: Tc).{ %r5: forall().{| s -> e } | s -> %r5 }\n    = salloc a\n    ; sfree\n"),
             ("unicode.txt", "±⅀\t★♲♥🎉汉⑳⓴ჳᏁℳ爪"),
             ("gaps.txt", "abc\ndef\nghi\njkl\nmno\npqr"),
-            ("repro3.file", "\n\n  ayo yoa\n    a b\n      c d e f g\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nlayer qwertyy using yoooo: \"a\" \"b\" \"c\"\n")
+            ("repro3.file", "\n\n  ayo yoa\n    a b\n      c d e f g\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nlayer qwertyy using yoooo: \"a\" \"b\" \"c\"\n"),
+            ("sample.tao", "def five = match () in {\n    () => 5,\n    () => \"5\",\n}")
           ]
 
   let reports =
@@ -82,6 +83,8 @@ main = do
           errorWithMultipleMarkersInNotes,
           errorWithMultilineCodeAdditionInNote,
           errorWithAMarkerOnFiveLines,
+          ariadneReadmeExample,
+          criticalFailureExample,
           beautifulExample
         ]
 
@@ -475,7 +478,7 @@ repro3 =
   Report
     Error
     (Just "WrongStaticLayerLength")
-    "The length of the static layer does not match the length of the template it uses"
+    "The length of the static layer does not\nmatch the length of the template it uses"
     [ Secondary (Range (3, 3) (5, 16) "repro3.file") $ Just "This template has 9 elements",
       Primary (Range (24, 28) (24, 39) "repro3.file") $ Just "... but this layer only has 3 members",
       Secondary (Range (24, 21) (24, 26) "repro3.file") $ Just "This is the template being used",
@@ -547,3 +550,29 @@ errorWithAMarkerOnFiveLines =
     "Error with a marker on five lines"
     [Primary (Range (1, 2) (6, 3) "gaps.txt") $ Just "Should take all 6 lines"]
     []
+
+ariadneReadmeExample :: Report String
+ariadneReadmeExample =
+  Report
+    Error
+    (Just "E03")
+    "Incompatible types"
+    [ Primary (Range (1, 12) (4, 2) "sample.tao") $ Just "The values are outputs of this match expression",
+      Secondary (Range (2, 11) (2, 12) "sample.tao") $ Just "This is of type Nat",
+      Secondary (Range (3, 11) (3, 14) "sample.tao") $ Just "This is of type Str"
+    ]
+    [Note "Outputs of match expressions must coerce to the same type" Nothing]
+
+criticalFailureExample :: Report String
+criticalFailureExample =
+  Report
+    Critical
+    Nothing
+    "Encountered an impossible case…"
+    [Primary (Range (1, 25) (1, 30) "test.zc") $ Just "While typechecking this expression"]
+    [ Note "The metavariable _22 could not be found in the metacontext." $
+        Just (Annotate (Range (1, 20) (1, 21) "test.zc") $ Just "It originated from here"),
+      Hint
+        "The typechecker gave up on your input.\nPlease report this at <website> if it isn't already.\nDon't forget to include this exact error message!"
+        Nothing
+    ]

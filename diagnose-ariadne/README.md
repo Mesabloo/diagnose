@@ -1,10 +1,26 @@
 # Ariadne layout for Diagnose
 
 This is an implementation of a custom layout for Diagnose, heavily inspired by [`ariadne`](https://github.com/zesterer/ariadne).
-As an example, here is a random test diagnostic:
 
-![real world example](https://raw.githubusercontent.com/Mesabloo/diagnose/custom-layouts/assets/real-world-example-unicode.png)
+Here are a few examples:
+- A simple critical compiler failure:
 
-See how similar it is to `ariadne`:
+  ![](https://raw.githubusercontent.com/mesabloo/diagnose/5cd9df942f9caece4c3e76e5a44368684c8c6b70/diagnose-ariadne/assets/critical-example.png)
+- An example error spanning across multiple files:
 
-![ariadne example](https://raw.githubusercontent.com/zesterer/ariadne/12759f0b5caa3963de73b899a6bbd9010d0a76f1/misc/example.png)
+  ![](https://raw.githubusercontent.com/mesabloo/diagnose/5cd9df942f9caece4c3e76e5a44368684c8c6b70/diagnose-ariadne/assets/example-multiple-files.png)
+- A random example originating from one of the issues on the repository:
+
+  ![](https://raw.githubusercontent.com/mesabloo/diagnose/5cd9df942f9caece4c3e76e5a44368684c8c6b70/diagnose-ariadne/assets/random-example.png)
+- A complete example featuring multiline markers as well as code addition in a note:
+
+  ![](https://raw.githubusercontent.com/mesabloo/diagnose/5cd9df942f9caece4c3e76e5a44368684c8c6b70/diagnose-ariadne/assets/full-example.png)
+- The ASCII-only equivalent (which can be enabled when rendering, if for some reason you don't want the Unicode one):
+
+  ![](https://raw.githubusercontent.com/mesabloo/diagnose/5cd9df942f9caece4c3e76e5a44368684c8c6b70/diagnose-ariadne/assets/ascii-example.png)
+
+To see how similar this layout is to ariadne, see the following table:
+
+| Diagnose | Ariadne |
+|:--------:|:-------:|
+| ![diagnose example](https://raw.githubusercontent.com/mesabloo/diagnose/5cd9df942f9caece4c3e76e5a44368684c8c6b70/diagnose-ariadne/assets/ariadne-readme.png) | ![ariadne example](https://raw.githubusercontent.com/zesterer/ariadne/12759f0b5caa3963de73b899a6bbd9010d0a76f1/misc/example.png) |
