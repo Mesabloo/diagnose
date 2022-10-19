@@ -33,9 +33,13 @@ tests:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -Wno-type-defaults
     dependencies:
     - diagnose
     - diagnose-ariadne
+    - diagnose-gcc
+    - diagnose-typescript
+    - bytestring
   diagnose-megaparsec-tests:
     main:                  Spec.hs
     source-dirs:           test/megaparsec
@@ -43,9 +47,10 @@ tests:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -Wno-type-defaults
     dependencies:
     - diagnose 
-    - diagnose-ariadne
+    - diagnose-gcc
     - megaparsec >= 9.0.0
     - text >= 1.2 && < 3
   diagnose-parsec-tests:
@@ -55,9 +60,10 @@ tests:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -Wno-type-defaults
     dependencies:
     - diagnose 
-    - diagnose-ariadne
+    - diagnose-gcc
     - parsec >= 3.1.14
     - text >= 1.2 && < 3
 

@@ -1,56 +1,63 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
+-- |
+-- Module      : Error.Diagnose.Layout.Ariadne
+-- Description : Main description of the Ariadne layout.
+-- Copyright   : (c) Mesabloo and contributors, 2022-
+-- License     : BSD3
+-- Stability   : experimental
+-- Portability : Portable
 module Error.Diagnose.Layout.Ariadne (ariadneLayout) where
 
+import Control.Applicative ((<|>))
+import Control.Arrow ((&&&))
+import Control.Monad (forM_, unless, when)
+import Control.Monad.Trans.Writer (Writer, execWriter, tell)
 import qualified Data.Array.IArray as Array
-import Data.Array.Unboxed (IArray, Ix, UArray, listArray, (!))
 import Data.Bifunctor (bimap, first, second)
-import Data.Char.WCWidth (wcwidth)
-import Data.Default (def)
 import Data.Foldable (fold)
 import Data.Function (on)
 import Data.Functor ((<&>))
 import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
-import Data.List (intersperse)
 import qualified Data.List as List
-import qualified Data.List.Safe as List
-import Data.Maybe (fromMaybe)
-import Data.Ord (Down (..))
-import qualified Data.Text as Text
-import Error.Diagnose.Diagnostic (filesOf, reportsOf)
+import Data.Maybe (fromMaybe, isJust)
+import Data.Some (Some (..), withSome, withSomeM)
+import Error.Diagnose.Diagnostic (def, filesOf, reportsOf)
 import Error.Diagnose.Layout (FileMap, Layout)
-import Error.Diagnose.Position (Position (..))
-import Error.Diagnose.Report (Marker (..), Note (..), Report (..))
-import Error.Diagnose.Style (Annotation (..))
-import Prettyprinter (Doc, Pretty, align, annotate, colon, hardline, lbracket, pretty, rbracket, space, width, (<+>))
-import Prettyprinter.Internal.Type (Doc (..))
+import Error.Diagnose.Layout.Ariadne.Config (Configuration (..), configuration)
+import Error.Diagnose.Layout.Ariadne.Style (AriadneAnnotation (..))
+import Error.Diagnose.Position (SourceRange (..))
+import Error.Diagnose.Pretty (Doc, Pretty, align, annotate, colon, hardline, lbracket, pretty, rbracket, space, width, (<+>))
+import Error.Diagnose.Report (Marker (..), MarkerKind (..), Note (..), Report (..), Severity (..))
+import Error.Diagnose.Utils (WidthTable, fetchLine, markerMessage, markerPosition, replaceLinesWith, safeArrayIndex)
+import qualified Safe as List (headMay, lastMay)
 
--- | Pretty prints a 'Diagnostic' into a 'Doc'ument that can be output using 'hPutDoc'.
+-- | Pretty prints a 'Error.Diagnose.Diagnostic.Diagnostic' into a 'Doc'ument that can be output using 'Error.Diagnose.Pretty.hPutDoc'.
+--   The generated 'Doc'ument should resemble Ariadne's error style.
 --
 --   Colors are put by default.
---   If you do not want these, just 'unAnnotate' the resulting document like so:
+--   If you do not want these, just 'Error.Diagnose.Pretty.unAnnotate' the resulting document like so:
 --
---   >>> let doc = unAnnotate (prettyDiagnostic withUnicode tabSize diagnostic)
---
---   Changing the style is also rather easy:
---
---   >>> let myCustomStyle :: Style = _
---   >>> let doc = myCustomStyle (prettyDiagnostic withUnicode tabSize diagnostic)
-ariadneLayout :: Layout msg
-ariadneLayout withUnicode tabSize diag =
-  fold . intersperse hardline $ prettyReport (filesOf diag) withUnicode tabSize <$> reportsOf diag
+--   >>> let doc = unAnnotate (ariadneLayout withUnicode tabSize diagnostic)
+ariadneLayout :: Layout msg AriadneAnnotation
+ariadneLayout withUnicode tabSize diag = fold . List.intersperse hardline $ go <$> reportsOf diag
+  where
+    go rep = execWriter $ prettyReport (filesOf diag) (configuration withUnicode) tabSize rep
 {-# INLINE ariadneLayout #-}
 
 --------------------------------------
 ------------- INTERNAL ---------------
 --------------------------------------
 
-type WidthTable = UArray Int Int
+-- | A simple type alias for a function generating a 'Doc' 'AriadneAnnotation' with return value of type 'a'.
+type Layouter a = Writer (Doc AriadneAnnotation) a
 
 -- | Pretty prints a report to a 'Doc' handling colors.
 prettyReport ::
@@ -58,78 +65,83 @@ prettyReport ::
   -- | The content of the file the reports are for
   FileMap ->
   -- | Should we print paths in unicode?
-  Bool ->
+  Configuration ->
   -- | The number of spaces each TAB character will span
   Int ->
   -- | The whole report to output
   Report msg ->
-  Doc Annotation
-prettyReport fileContent withUnicode tabSize (Warn code message markers hints) =
-  prettyReport' fileContent withUnicode tabSize False code message markers hints
-prettyReport fileContent withUnicode tabSize (Err code message markers hints) =
-  prettyReport' fileContent withUnicode tabSize True code message markers hints
+  Layouter ()
+prettyReport fileContent conf tabSize (Report sev code message markers hints) =
+  prettyReport' fileContent conf tabSize sev code message markers hints
 
+-- | Pretty prints an unwrapped report to a 'Doc' handling colors.
 prettyReport' ::
   Pretty msg =>
+  -- | The content of the files.
   FileMap ->
-  Bool ->
+  -- | A configuration for Unicode/ASCII characters.
+  Configuration ->
+  -- | The number of spaces that a TAB character must span.
   Int ->
-  Bool ->
+  -- | The severity of the report.
+  Severity ->
+  -- | The optional error code.
   Maybe msg ->
+  -- | The main message of the report.
   msg ->
-  [(Position, Marker msg)] ->
+  -- | Every marker present in the main section of the report.
+  [Marker msg 'MainMarker] ->
+  -- | All notes present at the end.
   [Note msg] ->
-  Doc Annotation
-prettyReport' fileContent withUnicode tabSize isError code message markers hints =
-  let sortedMarkers = List.sortOn (fst . begin . fst) markers
+  Layouter ()
+prettyReport' fileContent conf tabSize sev code message markers hints = do
+  let markers' = (markerPosition &&& id) <$> markers
+
+      sortedMarkers = List.sortOn (fst . begin . fst) markers'
       -- sort the markers so that the first lines of the reports are the first lines of the file
 
-      groupedMarkers = groupMarkersPerFile sortedMarkers
+      groupedMarkers = groupMarkersPerFile (snd <$> sortedMarkers)
       -- group markers by the file they appear in, and put `This` markers at the top of the report
 
-      maxLineNumberLength = maybe 3 (max 3 . length . show . fst . end . fst) $ List.safeLast markers
-      -- if there are no markers, then default to 3, else get the maximum between 3 and the length of the last marker
+      maxLineNumberLength = maybe 3 (max 3 . length . show . fst . end . fst) $ List.lastMay markers'
+  -- if there are no markers, then default to 3, else get the maximum between 3 and the length of the last marker
 
-      header =
-        annotate
-          (KindColor isError)
-          ( lbracket
-              <> ( if isError
-                     then "error"
-                     else "warning"
-                 )
-              <> case code of
-                Nothing -> rbracket
-                Just code -> space <> pretty code <> rbracket
-          )
-   in {-
-              A report is of the form:
-              (1)    [error|warning]: <message>
-              (2)           +--> <file>
-              (3)           :
-              (4)    <line> | <line of code>
-                            : <marker lines>
-                            : <marker messages>
-              (5)           :
-                            : <hints>
-              (6)    -------+
-      -}
+  {-
+        A report is of the form:
+        (1)    [error|warning]: <message>
+        (2)           +--> <file>
+        (3)           :
+        (4)    <line> | <line of code>
+                      : <marker lines>
+                      : <marker messages>
+        (5)           :
+                      : <hints>
+        (6)    -------+
+  -}
 
-      {- (1) -} header <> colon <+> align (pretty message)
-        <> {- (2), (3), (4) -} fold (uncurry (prettySubReport fileContent withUnicode isError tabSize maxLineNumberLength) <$> groupedMarkers)
-        <> {- (5) -} ( if
-                           | null hints && null markers -> mempty
-                           | null hints -> mempty
-                           | otherwise -> hardline <+> dotPrefix maxLineNumberLength withUnicode
-                     )
-        <> prettyAllHints hints maxLineNumberLength withUnicode
-        <> hardline
-        <> {- (6) -} ( if null markers && null hints
-                         then mempty
-                         else
-                           annotate RuleColor (pad (maxLineNumberLength + 2) (if withUnicode then '─' else '-') mempty <> if withUnicode then "╯" else "+")
-                             <> hardline
-                     )
+  {- (1) -}
+  tell $ prettySeverity sev code
+  tell $ colon <> space
+  tell . align $ pretty message
+
+  {- (2), (3), (4) -}
+  forM_ groupedMarkers (uncurry (prettySubReport fileContent conf sev tabSize maxLineNumberLength) . second (fmap Some))
+
+  {- (5) -}
+  when (not (null hints) && not (null markers)) do
+    tell $ hardline <> space
+    tell $ dotPrefix maxLineNumberLength conf
+
+  prettyAllHints hints maxLineNumberLength fileContent conf sev tabSize
+  when (null hints) do
+    tell $ hardline <> space
+
+  {- (6) -}
+  unless (null markers && null hints) do
+    tell $ pipePrefix maxLineNumberLength conf
+    tell hardline
+    tell . annotate Rule $ pad (maxLineNumberLength + 2) (horizontalRule conf) mempty <> pretty (endRuleSuffix conf)
+    tell hardline
 
 -------------------------------------------------------------------------------------
 ----- INTERNAL STUFF ----------------------------------------------------------------
@@ -149,9 +161,9 @@ dotPrefix ::
   -- | The length of the left space before the bullet.
   Int ->
   -- | Whether to print with unicode characters or not.
-  Bool ->
-  Doc Annotation
-dotPrefix leftLen withUnicode = pad leftLen ' ' mempty <+> annotate RuleColor (if withUnicode then "•" else ":")
+  Configuration ->
+  Doc AriadneAnnotation
+dotPrefix leftLen conf = pad leftLen ' ' mempty <+> annotate Rule (pretty $ dotRule conf)
 {-# INLINE dotPrefix #-}
 
 -- | Creates a "pipe"-prefix for a report line where there is no code.
@@ -164,9 +176,9 @@ pipePrefix ::
   -- | The length of the left space before the pipe.
   Int ->
   -- | Whether to print with unicode characters or not.
-  Bool ->
-  Doc Annotation
-pipePrefix leftLen withUnicode = pad leftLen ' ' mempty <+> annotate RuleColor (if withUnicode then "│" else "|")
+  Configuration ->
+  Doc AriadneAnnotation
+pipePrefix leftLen conf = pad leftLen ' ' mempty <+> annotate Rule (pretty $ verticalRule conf)
 {-# INLINE pipePrefix #-}
 
 -- | Creates a line-prefix for a report line containing source code
@@ -183,36 +195,25 @@ linePrefix ::
   -- | The line number to show.
   Int ->
   -- | Whether to use unicode characters or not.
-  Bool ->
-  Doc Annotation
-linePrefix leftLen lineNo withUnicode =
+  Configuration ->
+  Doc AriadneAnnotation
+linePrefix leftLen lineNo conf =
   let lineNoLen = length (show lineNo)
-   in annotate RuleColor $ mempty <+> pad (leftLen - lineNoLen) ' ' mempty <> pretty lineNo <+> if withUnicode then "│" else "|"
+   in annotate Rule (space <> pad (leftLen - lineNoLen) ' ' mempty)
+        <> annotate LineNumberTint (pretty lineNo)
+        <+> annotate Rule (pretty $ verticalRule conf)
 {-# INLINE linePrefix #-}
-
--- | Creates an ellipsis-prefix, when some line numbers are not consecutive.
---
---   Pretty printing yields those results:
---
---   [with unicode] "@␣␣␣␣␣⋮␣@"
---   [without unicode] "@␣␣␣␣...@"
-ellipsisPrefix ::
-  Int ->
-  Bool ->
-  Doc Annotation
-ellipsisPrefix leftLen withUnicode = pad leftLen ' ' mempty <> annotate RuleColor (if withUnicode then space <> "⋮" else "...")
 
 groupMarkersPerFile ::
   Pretty msg =>
-  [(Position, Marker msg)] ->
-  [(Bool, [(Position, Marker msg)])]
+  [Marker msg 'MainMarker] ->
+  [(Bool, [Marker msg 'MainMarker])]
 groupMarkersPerFile [] = []
 groupMarkersPerFile markers =
-  let markersPerFile = List.foldl' (HashMap.unionWith (<>)) mempty $ markers <&> \tup@(p, _) -> HashMap.singleton (file p) [tup]
-   in -- put all markers on the same file together
+  let -- put all markers on the same file together
       -- NOTE: it's a shame that `HashMap.unionsWith f = foldl' (HashMap.unionWith f) mempty` does not exist
-
-      onlyFirstToTrue $ putThisMarkersAtTop $ HashMap.elems markersPerFile
+      markersPerFile = List.foldl' (HashMap.unionWith (<>)) mempty $ markers <&> \m -> HashMap.singleton (file $ markerPosition m) [m]
+   in onlyFirstToTrue $ putThisMarkersAtTop $ HashMap.elems markersPerFile
   where
     onlyFirstToTrue = go True []
 
@@ -221,8 +222,8 @@ groupMarkersPerFile markers =
 
     putThisMarkersAtTop = List.sortBy \ms1 ms2 ->
       if
-          | any isThisMarker (snd <$> ms1) -> LT
-          | any isThisMarker (snd <$> ms2) -> GT
+          | any isPrimaryMarker ms1 -> LT
+          | any isPrimaryMarker ms2 -> GT
           | otherwise -> EQ
 
 -- | Prettyprint a sub-report, which is a part of the report spanning across a single file
@@ -231,9 +232,9 @@ prettySubReport ::
   -- | The content of files in the diagnostics
   FileMap ->
   -- | Is the output done with Unicode characters?
-  Bool ->
+  Configuration ->
   -- | Is the current report an error report?
-  Bool ->
+  Severity ->
   -- | The number of spaces each TAB character will span
   Int ->
   -- | The size of the biggest line number
@@ -241,76 +242,112 @@ prettySubReport ::
   -- | Is this sub-report the first one in the list?
   Bool ->
   -- | The list of line-ordered markers appearing in a single file
-  [(Position, Marker msg)] ->
-  Doc Annotation
-prettySubReport fileContent withUnicode isError tabSize maxLineNumberLength isFirst markers =
+  [Some (Marker msg)] ->
+  Layouter ()
+prettySubReport fileContent conf sev tabSize maxLineNumberLength isFirst markers = do
   let (markersPerLine, multilineMarkers) = splitMarkersPerLine markers
       -- split the list on whether markers are multiline or not
 
-      sortedMarkersPerLine = {- second (List.sortOn (first $ snd . begin)) <$> -} List.sortOn fst (HashMap.toList markersPerLine)
+      sortedMarkersPerLine = List.sortOn fst (HashMap.toList markersPerLine)
 
-      reportFile = maybe (pretty @Position def) (pretty . fst) $ List.safeHead (List.sortOn (Down . snd) markers)
+      pos@(Range _ _ file) =
+        maybe def (`withSome` markerPosition) $
+          List.find (`withSome` isPrimaryMarker) markers <|> List.headMay markers
+      reportFile = pretty pos
       -- the reported file is the file of the first 'This' marker (only one must be present)
 
-      allLineNumbers = List.sort $ List.nub $ (fst <$> sortedMarkersPerLine) <> (multilineMarkers >>= \(Position (bl, _) (el, _) _, _) -> [bl .. el])
+      allLineNumbers =
+        List.sort . List.nub $
+          (fst <$> sortedMarkersPerLine)
+            <> ( multilineMarkers >>= \m ->
+                   let Range (bl, _) (el, _) _ = withSome m markerPosition
+                    in [bl .. el]
+               )
 
-      fileMarker =
-        ( if isFirst
-            then
-              space <> pad maxLineNumberLength ' ' mempty
-                <+> annotate RuleColor (if withUnicode then "╭──▶" else "+-->")
-            else
-              space <> dotPrefix maxLineNumberLength withUnicode <> hardline
-                <> annotate RuleColor (pad (maxLineNumberLength + 2) (if withUnicode then '─' else '-') mempty)
-                <> annotate RuleColor (if withUnicode then "┼──▶" else "+-->")
-        )
-          <+> annotate FileColor reportFile
-   in {- (2) -} hardline <> fileMarker
-        <> hardline
-          <+> {- (3) -} pipePrefix maxLineNumberLength withUnicode
-        <> {- (4) -} prettyAllLines fileContent withUnicode isError tabSize maxLineNumberLength sortedMarkersPerLine multilineMarkers allLineNumbers
+      onlyHasNotes = all (`withSome` isNoteMarker) markers
 
-isThisMarker :: Marker msg -> Bool
-isThisMarker (This _) = True
-isThisMarker _ = False
+      fileMarker'
+        | isFirst = do
+            tell $ pad (maxLineNumberLength + 2) ' ' mempty
+            tell . annotate Rule $
+              pretty (startFileArrowPrefix conf)
+                <> pad 2 (horizontalRule conf) mempty
+                <> pretty (fileArrowTip conf)
+        | otherwise = do
+            unless onlyHasNotes do
+              tell $ space <> dotPrefix maxLineNumberLength conf
+              tell hardline
+            tell . annotate Rule $ pad (maxLineNumberLength + 2) ' ' mempty
+            tell . annotate Rule $
+              pretty (inlineFileArrowPrefix conf)
+                <> pad 2 (horizontalRule conf) mempty
+                <> pretty (fileArrowTip conf)
+      fileMarker = do
+        fileMarker'
+        tell $ space <> annotate File reportFile
 
--- |
-splitMarkersPerLine :: [(Position, Marker msg)] -> (HashMap Int [(Position, Marker msg)], [(Position, Marker msg)])
-splitMarkersPerLine [] = (mempty, mempty)
-splitMarkersPerLine (m@(Position {..}, _) : ms) =
-  let (bl, _) = begin
-      (el, _) = end
-   in (if bl == el then first (HashMap.insertWith (<>) bl [m]) else second (m :))
-        (splitMarkersPerLine ms)
+  {- (2) -}
+  tell hardline
+  fileMarker
+  tell $ hardline <> space
 
--- |
+  {- (3) -}
+  tell $ pipePrefix maxLineNumberLength conf
+
+  {- (4) -}
+  prettyAllLines fileContent conf sev file tabSize maxLineNumberLength sortedMarkersPerLine multilineMarkers allLineNumbers
+
+-- | Checks whether a marker is a 'Primary' marker or not.
+isPrimaryMarker :: Marker msg k -> Bool
+isPrimaryMarker (Primary {}) = True
+isPrimaryMarker _ = False
+
+-- | Checks whether a marker can appear in a note report.
+isNoteMarker :: Marker msg k -> Bool
+isNoteMarker (AddCode {}) = True
+isNoteMarker (RemoveCode {}) = True
+isNoteMarker (Annotate {}) = True
+isNoteMarker _ = False
+
+splitMarkersPerLine :: [Some (Marker msg)] -> (HashMap Int [Some (Marker msg)], [Some (Marker msg)])
+splitMarkersPerLine = go (mempty, mempty)
+  where
+    go acc [] = bimap (fmap reverse) reverse acc
+    go acc (m : ms) =
+      let Range (bl, _) (el, _) _ = withSome m markerPosition
+
+          f
+            | bl == el = first (HashMap.insertWith (<>) bl [m])
+            | otherwise = second (m :)
+       in go (f acc) ms
+
 prettyAllLines ::
   Pretty msg =>
   FileMap ->
-  Bool ->
-  Bool ->
+  Configuration ->
+  Severity ->
+  FilePath ->
   -- | The number of spaces each TAB character will span
   Int ->
   Int ->
-  [(Int, [(Position, Marker msg)])] ->
-  [(Position, Marker msg)] ->
+  [(Int, [Some (Marker msg)])] ->
+  [Some (Marker msg)] ->
   [Int] ->
-  Doc Annotation
-prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNumbers =
+  Layouter ()
+prettyAllLines files conf sev file tabSize leftLen inline multiline lineNumbers =
   case lineNumbers of
-    [] ->
-      showMultiline True multiline
-    [l] ->
-      let (ms, doc) = showForLine True l
-       in doc
-            <> prettyAllLines files withUnicode isError tabSize leftLen inline ms []
-    l1 : l2 : ls ->
-      let (ms, doc) = showForLine False l1
-       in doc
-            <> (if l2 /= l1 + 1 then hardline <+> dotPrefix leftLen withUnicode else mempty)
-            <> prettyAllLines files withUnicode isError tabSize leftLen inline ms (l2 : ls)
+    [] -> showMultiline True multiline
+    [l] -> do
+      ms <- showForLine True l
+      prettyAllLines files conf sev file tabSize leftLen inline ms []
+    l1 : l2 : ls -> do
+      ms <- showForLine False l1
+      when (l2 /= l1 + 1) do
+        tell $ hardline <> space
+        tell $ dotPrefix leftLen conf
+      prettyAllLines files conf sev file tabSize leftLen inline ms (l2 : ls)
   where
-    showForLine isLastLine line =
+    showForLine isLastLine line = do
       {-
           A line of code is composed of:
           (1)     <line> | <source code>
@@ -321,267 +358,310 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
       -}
       let allInlineMarkersInLine = snd =<< filter ((==) line . fst) inline
 
-          allMultilineMarkersInLine = flip filter multiline \(Position (bl, _) (el, _) _, _) -> bl == line || el == line
+          allMultilineMarkersInLine = flip filter multiline \m ->
+            let Range (bl, _) (el, _) _ = withSome m markerPosition
+             in bl == line || el == line
 
-          allMultilineMarkersSpanningLine = flip filter multiline \(Position (bl, _) (el, _) _, _) -> bl < line && el > line
+          allMultilineMarkersSpanningLine = flip filter multiline \m ->
+            let Range (bl, _) (el, _) _ = withSome m markerPosition
+             in bl < line && el > line
 
-          inSpanOfMultiline = flip any multiline \(Position (bl, _) (el, _) _, _) -> bl <= line && el >= line
+          inSpanOfMultiline = flip any multiline \m ->
+            let Range (bl, _) (el, _) _ = withSome m markerPosition
+             in bl <= line && el >= line
 
-          colorOfFirstMultilineMarker = maybe id (annotate . markerColor isError . snd) (List.safeHead $ allMultilineMarkersInLine <> allMultilineMarkersSpanningLine)
+          colorOfFirstMultilineMarker = maybe id (annotate . (`withSome` markerColor sev)) (List.headMay $ allMultilineMarkersInLine <> allMultilineMarkersSpanningLine)
           -- take the first multiline marker to color the entire line, if there is one
 
-          (multilineEndingOnLine, otherMultilines) = flip List.partition multiline \(Position _ (el, _) _, _) -> el == line
+          (multilineEndingOnLine, otherMultilines) = flip List.partition multiline \m ->
+            let Range _ (el, _) _ = withSome m markerPosition
+             in el == line
 
           !additionalPrefix = case allMultilineMarkersInLine of
-            [] ->
-              if not $ null multiline
-                then
+            [] -> do
+              unless (null multiline) do
+                tell
                   if not $ null allMultilineMarkersSpanningLine
-                    then colorOfFirstMultilineMarker if withUnicode then "│  " else "|  "
+                    then colorOfFirstMultilineMarker (pretty $ verticalRule conf : "  ")
                     else "   "
-                else mempty
-            (p@(Position _ (el, _) _), marker) : _ ->
-              let hasPredecessor = el == line || maybe False ((/=) p . fst . fst) (List.safeUncons multiline)
-               in colorOfFirstMultilineMarker
-                    ( if
-                          | hasPredecessor && withUnicode -> "├"
-                          | hasPredecessor -> "|"
-                          | withUnicode -> "╭"
-                          | otherwise -> "+"
-                    )
-                    <> annotate (markerColor isError marker) (if withUnicode then "┤" else ">")
-                    <> space
+            marker : _ -> do
+              let p@(Range _ (el, _) _) = withSome marker markerPosition
+
+                  hasPredecessor = el == line || maybe False ((/=) p . (`withSome` markerPosition) . fst) (List.uncons multiline)
+
+                  color = withSome marker (markerColor sev)
+
+              tell . colorOfFirstMultilineMarker . pretty $ (if hasPredecessor then multilineMarkerMiddle else multilineMarkerStart) conf
+              tell . annotate color . pretty $ multilineMarkerHead conf
+              tell space
 
           -- we need to remove all blank markers because they are irrelevant to the display
-          allInlineMarkersInLine' = filter ((/=) Blank . snd) allInlineMarkersInLine
-          allMultilineMarkersSpanningLine' = filter ((/=) Blank . snd) allMultilineMarkersSpanningLine
+          allInlineMarkersInLine' = filter (`withSome` (not . isBlankMarker)) allInlineMarkersInLine
+          allMultilineMarkersSpanningLine' = filter (`withSome` (not . isBlankMarker)) allMultilineMarkersSpanningLine
 
-          (widths, renderedCode) = getLine_ files (allInlineMarkersInLine <> allMultilineMarkersInLine <> allMultilineMarkersSpanningLine') line tabSize isError
-       in ( otherMultilines,
-            hardline
-              <> {- (1) -} linePrefix leftLen line withUnicode <+> additionalPrefix
-              <> renderedCode
-              <> {- (2) -} showAllMarkersInLine (not $ null multiline) inSpanOfMultiline colorOfFirstMultilineMarker withUnicode isError leftLen widths allInlineMarkersInLine'
-              <> showMultiline (isLastLine || List.safeLast multilineEndingOnLine == List.safeLast multiline) multilineEndingOnLine
-          )
+          (widths, _, renderedCode) = fetchLine files file line tabSize (NoLineTint, "<no line>") CodeTint (`withSome` markerColor sev) (allInlineMarkersInLine <> allMultilineMarkersInLine <> allMultilineMarkersSpanningLine')
 
-    showMultiline _ [] = mempty
-    showMultiline isLastMultiline multiline =
-      let colorOfFirstMultilineMarker = markerColor isError . snd <$> List.safeHead multiline
+          isLastMultiline = (==) `on` fmap (`withSome` markerPosition)
+
+      tell hardline
+
+      {- (1) -}
+      tell $ linePrefix leftLen line conf <> space
+      additionalPrefix
+      tell renderedCode
+
+      {- (2) -}
+      showAllMarkersInLine (not $ null multiline) inSpanOfMultiline colorOfFirstMultilineMarker conf sev leftLen widths allInlineMarkersInLine'
+      showMultiline (isLastLine || isLastMultiline (List.lastMay multilineEndingOnLine) (List.lastMay multiline)) multilineEndingOnLine
+
+      pure otherMultilines
+
+    showMultiline :: Pretty msg => Bool -> [Some (Marker msg)] -> Layouter ()
+    showMultiline _ [] = pure ()
+    showMultiline isLastMultiline multiline = do
+      let colorOfFirstMultilineMarker = maybe id (annotate . (`withSome` markerColor sev)) $ List.headMay multiline
           -- take the color of the last multiline marker in case we need to add additional bars
 
-          prefix = hardline <+> dotPrefix leftLen withUnicode <> space
+          prefix = hardline <+> dotPrefix leftLen conf <> space
 
-          prefixWithBar color = prefix <> maybe id annotate color (if withUnicode then "│ " else "| ")
+          prefixWithBar color = prefix <> color (pretty $ verticalRule conf : " ")
 
-          showMultilineMarkerMessage (_, Blank) _ = mempty
-          showMultilineMarkerMessage (_, marker) isLast =
-            annotate (markerColor isError marker) $
-              ( if isLast && isLastMultiline
-                  then if withUnicode then "╰╸ " else "`- "
-                  else if withUnicode then "├╸ " else "|- "
-              )
-                <> replaceLinesWith (if isLast then prefix <> "   " else prefixWithBar (Just $ markerColor isError marker) <> space) (pretty $ markerMessage marker)
+          showMultilineMarkerMessage :: Pretty msg => Marker msg k -> Bool -> Layouter ()
+          showMultilineMarkerMessage (Blank {}) _ = pure ()
+          showMultilineMarkerMessage marker isLast = do
+            let color = markerColor sev marker
 
-          showMultilineMarkerMessages [] = []
-          showMultilineMarkerMessages [m] = [showMultilineMarkerMessage m True]
-          showMultilineMarkerMessages (m : ms) = showMultilineMarkerMessage m False : showMultilineMarkerMessages ms
-       in prefixWithBar colorOfFirstMultilineMarker <> prefix <> fold (List.intersperse prefix $ showMultilineMarkerMessages multiline)
+                prefix'
+                  | isLast && isLastMultiline = markerMessagePrefixStart conf
+                  | otherwise = multilineMarkerPrefixStart conf
 
--- |
-getLine_ ::
-  FileMap ->
-  [(Position, Marker msg)] ->
-  Int ->
-  Int ->
+            tell . annotate color . pretty $ prefix' : markerMessagePrefixEnd conf : " "
+            case markerMessage marker of
+              Nothing -> pure ()
+              Just msg -> do
+                let linePrefix
+                      | isLast = prefix <> "   "
+                      | otherwise = prefixWithBar (annotate color) <> space
+
+                tell . annotate color . replaceLinesWith linePrefix id $ pretty msg
+
+          showMultilineMarkerMessages [] = pure ()
+          showMultilineMarkerMessages [m] =
+            withSomeM (pure m) (`showMultilineMarkerMessage` True)
+          showMultilineMarkerMessages (m : ms) = do
+            withSomeM (pure m) (`showMultilineMarkerMessage` False)
+            tell prefix
+            showMultilineMarkerMessages ms
+
+      tell $ prefixWithBar colorOfFirstMultilineMarker
+      tell prefix
+      showMultilineMarkerMessages multiline
+
+showAllMarkersInLine ::
+  Pretty msg =>
   Bool ->
-  (WidthTable, Doc Annotation)
-getLine_ files markers line tabSize isError =
-  case safeArrayIndex (line - 1) =<< (HashMap.!?) files . file . fst =<< List.safeHead markers of
-    Nothing ->
-      ( mkWidthTable "",
-        annotate NoLineColor "<no line>"
-      )
-    Just code ->
-      ( mkWidthTable code,
-        flip foldMap (zip [1 ..] code) \(n, c) ->
-          let cdoc = ifTab (pretty (replicate tabSize ' ')) pretty c
-              colorizingMarkers = flip filter markers \case
-                (Position (bl, bc) (el, ec) _, _)
-                  | bl == el ->
-                    n >= bc && n < ec
-                  | otherwise ->
-                    (bl == line && n >= bc)
-                      || (el == line && n < ec)
-                      || (bl < line && el > line)
-           in maybe
-                (annotate CodeStyle)
-                ((\m -> annotate (MarkerStyle $ markerColor isError m)) . snd)
-                (List.safeHead colorizingMarkers)
-                cdoc
-      )
-  where
-    ifTab :: a -> (Char -> a) -> Char -> a
-    ifTab a _ '\t' = a
-    ifTab _ f c = f c
-
-    mkWidthTable :: String -> WidthTable
-    mkWidthTable s = listArray (1, length s) (ifTab tabSize wcwidth <$> s)
-
--- |
-showAllMarkersInLine :: Pretty msg => Bool -> Bool -> (Doc Annotation -> Doc Annotation) -> Bool -> Bool -> Int -> WidthTable -> [(Position, Marker msg)] -> Doc Annotation
-showAllMarkersInLine _ _ _ _ _ _ _ [] = mempty
-showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUnicode isError leftLen widths ms =
-  let maxMarkerColumn = snd $ end $ fst $ List.last $ List.sortOn (snd . end . fst) ms
+  Bool ->
+  (Doc AriadneAnnotation -> Doc AriadneAnnotation) ->
+  Configuration ->
+  Severity ->
+  Int ->
+  WidthTable ->
+  [Some (Marker msg)] ->
+  Layouter ()
+showAllMarkersInLine _ _ _ _ _ _ _ [] = pure ()
+showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix conf sev leftLen widths ms = do
+  let (_, maxMarkerColumn) = end . maximum $ (`withSome` markerPosition) <$> ms
+      -- get the maximum end column, so that we know when to stop looking for other markers on the same line
       specialPrefix
-        | inSpanOfMultiline = colorMultilinePrefix (if withUnicode then "│ " else "| ") <> space
+        | inSpanOfMultiline = colorMultilinePrefix (pretty $ verticalRule conf : " ") <> space
         | hasMultilines = colorMultilinePrefix "  " <> space
         | otherwise = mempty
-   in -- get the maximum end column, so that we know when to stop looking for other markers on the same line
-      hardline <+> dotPrefix leftLen withUnicode <+> (if List.null ms then mempty else specialPrefix <> showMarkers 1 maxMarkerColumn <> showMessages specialPrefix ms maxMarkerColumn)
+
+  tell $ hardline <> space
+  tell $ dotPrefix leftLen conf <> space
+  unless (null ms) do
+    tell specialPrefix
+    showMarkers 1 maxMarkerColumn
+    showMessages specialPrefix ms maxMarkerColumn
   where
     widthAt i = 0 `fromMaybe` safeArrayIndex i widths
     widthsBetween start end =
       sum $ take (end - start) $ drop (start - 1) $ Array.elems widths
 
+    showMarkers :: Int -> Int -> Layouter ()
     showMarkers n lineLen
-      | n > lineLen = mempty -- reached the end of the line
-      | otherwise =
-        let allMarkers = flip filter ms \(Position (_, bc) (_, ec) _, mark) -> mark /= Blank && n >= bc && n < ec
-         in -- only consider markers which span onto the current column
-            case allMarkers of
-              [] -> fold (replicate (widthAt n) space) <> showMarkers (n + 1) lineLen
-              (Position {..}, marker) : _ ->
+      | n > lineLen = pure () -- reached the end of the line
+      | otherwise = do
+          let allMarkers = flip filter ms \mark ->
+                let (isBlank, Range (_, bc) (_, ec) _) = withSome mark (isBlankMarker &&& markerPosition)
+                 in not isBlank && n >= bc && n < ec
+
+          -- only consider markers which span onto the current column
+          case allMarkers of
+            [] -> do
+              tell $ fold (replicate (widthAt n) space)
+              showMarkers (n + 1) lineLen
+            marker : _ -> do
+              let (Range (_, bc) _ _, (color, (msg, (start, middle)))) =
+                    withSome marker $
+                      markerPosition &&& markerColor sev &&& markerMessage &&& \case
+                        AddCode {} -> (additionMarkerStart conf, additionMarkerMiddle conf)
+                        RemoveCode {} -> (deletionMarkerStart conf, deletionMarkerMiddle conf)
+                        Annotate {} -> (markerStart conf, markerMiddle conf)
+                        _ -> (markerStart conf, markerMiddle conf)
+
+              tell $
                 annotate
-                  (markerColor isError marker)
-                  ( if snd begin == n
-                      then (if withUnicode then "┬" else "^") <> fold (replicate (widthAt n - 1) if withUnicode then "─" else "-")
-                      else fold (replicate (widthAt n) if withUnicode then "─" else "-")
-                  )
-                  <> showMarkers (n + 1) lineLen
+                  color
+                  if bc == n && isJust msg
+                    then pretty start <> fold (replicate (widthAt n - 1) (pretty middle))
+                    else fold (replicate (widthAt n) (pretty middle))
 
-    showMessages specialPrefix ms lineLen = case List.safeUncons ms of
-      Nothing -> mempty -- no more messages to show
-      Just ((Position b@(_, bc) _ _, msg), pipes) ->
-        let filteredPipes = filter (uncurry (&&) . bimap ((/= b) . begin) (/= Blank)) pipes
-            -- record only the pipes corresponding to markers on different starting positions
-            nubbedPipes = List.nubBy ((==) `on` (begin . fst)) filteredPipes
-            -- and then remove all duplicates
+              showMarkers (n + 1) lineLen
 
-            allColumns _ [] = (1, [])
-            allColumns n ms@((Position (_, bc) _ _, col) : ms')
-              | n == bc = bimap (+ 1) (col :) (allColumns (n + 1) ms')
-              | n < bc = bimap (+ 1) (replicate (widthAt n) space <>) (allColumns (n + 1) ms)
-              | otherwise = bimap (+ 1) (replicate (widthAt n) space <>) (allColumns (n + 1) ms')
-            -- transform the list of remaining markers into a single document line
+    showMessages :: Pretty msg => Doc AriadneAnnotation -> [Some (Marker msg)] -> Int -> Layouter ()
+    showMessages _ [] _ = pure () -- no more messages to show
+    showMessages specialPrefix (msg : pipes) lineLen = do
+      let (color, (message, Range b@(_, bc) _ _)) = withSome msg (markerColor sev &&& markerMessage &&& markerPosition)
 
-            hasSuccessor = length filteredPipes /= length pipes
+          pipes' = ((`withSome` markerPosition) &&& id) <$> pipes
 
-            lineStart pipes =
-              let (n, docs) = allColumns 1 $ List.sortOn (snd . begin . fst) pipes
-                  numberOfSpaces = widthsBetween n bc
-               in dotPrefix leftLen withUnicode <+> specialPrefix <> fold docs <> pretty (replicate numberOfSpaces ' ')
-            -- the start of the line contains the "dot"-prefix as well as all the pipes for all the still not rendered marker messages
+          filteredPipes = flip filter pipes' \(Range b1 _ _, m) ->
+            let isBlank = withSome m isBlankMarker
+             in not isBlank && b1 /= b
+          -- record only the pipes corresponding to markers on different starting positions
+          nubbedPipes = List.nubBy ((==) `on` (begin . fst)) filteredPipes
+          -- and then remove all duplicates
 
-            prefix =
-              let (pipesBefore, pipesAfter) = List.partition ((< bc) . snd . begin . fst) nubbedPipes
-                  -- split the list so that all pipes before can have `|`s but pipes after won't
+          allColumns _ [] = (1, [])
+          allColumns n ms@((Range (_, bc) _ _, col) : ms')
+            | n == bc = bimap (+ 1) (col :) (allColumns (n + 1) ms')
+            | n < bc = bimap (+ 1) (replicate (widthAt n) space <>) (allColumns (n + 1) ms)
+            | otherwise = bimap (+ 1) (replicate (widthAt n) space <>) (allColumns (n + 1) ms')
+          -- transform the list of remaining markers into a single document line
 
-                  pipesBeforeRendered = pipesBefore <&> second \marker -> annotate (markerColor isError marker) (if withUnicode then "│" else "|")
-                  -- pre-render pipes which are before because they will be shown
+          hasSuccessor = length filteredPipes /= length pipes'
 
-                  lastBeginPosition = snd . begin . fst <$> List.safeLast (List.sortOn (snd . begin . fst) pipesAfter)
+          lineStart pipes =
+            let (n, docs) = allColumns 1 $ List.sortOn (snd . begin . fst) pipes
+                numberOfSpaces = widthsBetween n bc
+             in dotPrefix leftLen conf <+> specialPrefix <> fold docs <> pretty (replicate numberOfSpaces ' ')
+          -- the start of the line contains the "dot"-prefix as well as all the pipes for all the still not rendered marker messages
 
-                  lineLen = case lastBeginPosition of
-                    Nothing -> 0
-                    Just col -> widthsBetween bc col
+          prefix = do
+            let (pipesBefore, pipesAfter) = List.partition ((< bc) . snd . begin . fst) nubbedPipes
+                -- split the list so that all pipes before can have `|`s but pipes after won't
 
-                  currentPipe =
-                    if
-                        | withUnicode && hasSuccessor -> "├"
-                        | withUnicode -> "╰"
-                        | hasSuccessor -> "|"
-                        | otherwise -> "`"
+                pipesBeforeRendered =
+                  pipesBefore
+                    <&> second \marker -> annotate (withSome marker (markerColor sev)) (pretty $ verticalRule conf)
+                -- pre-render pipes which are before because they will be shown
 
-                  lineChar = if withUnicode then '─' else '-'
-                  pointChar = if withUnicode then "╸" else "-"
+                lastBeginPosition = snd . begin . fst <$> List.lastMay (List.sortOn (snd . begin . fst) pipesAfter)
 
-                  bc' = bc + lineLen + 2
-                  pipesBeforeMessageStart = List.filter ((< bc') . snd . begin . fst) pipesAfter
-                  -- consider pipes before, as well as pipes which came before the text rectangle bounds
-                  pipesBeforeMessageRendered = (pipesBefore <> pipesBeforeMessageStart) <&> second \marker -> annotate (markerColor isError marker) (if withUnicode then "│" else "|")
-               in -- also pre-render pipes which are before the message text bounds, because they will be shown if the message is on
-                  -- multiple lines
+                lineLen = case lastBeginPosition of
+                  Nothing -> 0
+                  Just col -> widthsBetween bc col
 
-                  lineStart pipesBeforeRendered
-                    <> annotate (markerColor isError msg) (currentPipe <> pretty (replicate lineLen lineChar) <> pointChar)
-                    <+> annotate (markerColor isError msg) (replaceLinesWith (hardline <+> lineStart pipesBeforeMessageRendered <+> if List.null pipesBeforeMessageStart then "  " else " ") $ pretty $ markerMessage msg)
-         in hardline <+> prefix <> showMessages specialPrefix pipes lineLen
+                currentPipe =
+                  pretty
+                    (if hasSuccessor then multilineMarkerPrefixStart conf else markerMessagePrefixStart conf)
 
--- WARN: uses the internal of the library 'prettyprinter'
---
---       DO NOT use a wildcard here, in case the internal API exposes one more constructor
+                lineChar = pretty $ markerMessagePrefixMiddle conf
+                pointChar = pretty $ markerMessagePrefixEnd conf
 
--- |
-replaceLinesWith :: Doc ann -> Doc ann -> Doc ann
-replaceLinesWith repl Line = repl
-replaceLinesWith _ Fail = Fail
-replaceLinesWith _ Empty = Empty
-replaceLinesWith _ (Char c) = Char c
-replaceLinesWith repl (Text _ s) =
-  let lines = Text.split (== '\n') s <&> \txt -> Text (Text.length txt) txt
-   in mconcat (List.intersperse repl lines)
-replaceLinesWith repl (FlatAlt f d) = FlatAlt (replaceLinesWith repl f) (replaceLinesWith repl d)
-replaceLinesWith repl (Cat c d) = Cat (replaceLinesWith repl c) (replaceLinesWith repl d)
-replaceLinesWith repl (Nest n d) = Nest n (replaceLinesWith repl d)
-replaceLinesWith repl (Union c d) = Union (replaceLinesWith repl c) (replaceLinesWith repl d)
-replaceLinesWith repl (Column f) = Column (replaceLinesWith repl . f)
-replaceLinesWith repl (Nesting f) = Nesting (replaceLinesWith repl . f)
-replaceLinesWith repl (Annotated ann doc) = Annotated ann (replaceLinesWith repl doc)
-replaceLinesWith repl (WithPageWidth f) = WithPageWidth (replaceLinesWith repl . f)
+                bc' = bc + lineLen + 2
+                -- consider pipes before, as well as pipes which came before the text rectangle bounds
+                pipesBeforeMessageStart = List.filter ((< bc') . snd . begin . fst) pipesAfter
+                -- also pre-render pipes which are before the message text bounds, because they will be shown if the message is on
+                -- multiple lines
+                pipesBeforeMessageRendered =
+                  (pipesBefore <> pipesBeforeMessageStart)
+                    <&> second \marker -> annotate (withSome marker (markerColor sev)) (pretty $ verticalRule conf)
+
+            case message of
+              Nothing -> pure ()
+              Just msg -> do
+                let linePrefix =
+                      hardline
+                        <+> lineStart pipesBeforeMessageRendered
+                        <+> if List.null pipesBeforeMessageStart then "  " else " "
+
+                tell $ lineStart pipesBeforeRendered
+                tell . annotate color $ currentPipe <> fold (replicate lineLen lineChar) <> pointChar <> space
+                tell . annotate color . replaceLinesWith linePrefix id $ pretty msg
+
+      tell $ hardline <> space
+      prefix
+      showMessages specialPrefix pipes lineLen
 
 -- | Extracts the color of a marker as a 'Doc' coloring function.
 markerColor ::
   -- | Whether the marker is in an error context or not.
   --   This really makes a difference for a 'This' marker.
-  Bool ->
+  Severity ->
   -- | The marker to extract the color from.
-  Marker msg ->
+  Marker msg k ->
   -- | A function used to color a 'Doc'.
-  Annotation
-markerColor isError (This _) = ThisColor isError
-markerColor _ (Where _) = WhereColor
-markerColor _ (Maybe _) = MaybeColor
-markerColor _ Blank = CodeStyle -- we take the same color as the code, for it to be invisible
-{-# INLINE markerColor #-}
+  AriadneAnnotation
+markerColor sev (Primary {}) = PrimaryTint sev
+markerColor _ (Secondary {}) = SecondaryTint
+markerColor _ (Blank {}) = CodeTint -- we take the same color as the code, for it to be invisible
+markerColor _ (AddCode {}) = AdditionTint
+markerColor _ (RemoveCode {}) = RemovalTint
+markerColor _ (Annotate {}) = SecondaryTint
 
--- | Retrieves the message held by a marker.
-markerMessage :: Marker msg -> msg
-markerMessage (This m) = m
-markerMessage (Where m) = m
-markerMessage (Maybe m) = m
-markerMessage Blank = undefined
-{-# INLINE markerMessage #-}
+isBlankMarker :: Marker msg k -> Bool
+isBlankMarker (Blank {}) = True
+isBlankMarker _ = False
+{-# INLINE isBlankMarker #-}
+
+prettySeverity :: Pretty msg => Severity -> Maybe msg -> Doc AriadneAnnotation
+prettySeverity sev code =
+  let sevdoc = case sev of
+        Error -> "error"
+        Warning -> "warning"
+        Critical -> "critical"
+      codedoc = case code of
+        Nothing -> mempty
+        Just code -> space <> pretty code
+   in annotate (Header $ PrimaryTint sev) (lbracket <> sevdoc <> codedoc <> rbracket)
 
 -- | Pretty prints all hints.
-prettyAllHints :: Pretty msg => [Note msg] -> Int -> Bool -> Doc Annotation
-prettyAllHints [] _ _ = mempty
-prettyAllHints (h : hs) leftLen withUnicode =
+prettyAllHints :: Pretty msg => [Note msg] -> Int -> FileMap -> Configuration -> Severity -> Int -> Layouter ()
+prettyAllHints [] _ _ _ _ _ = pure ()
+prettyAllHints (h : hs) leftLen files conf sev tabSize = do
   {-
         A hint is composed of:
         (1)         : Hint: <hint message>
+        (2)         +--> <file position>
+        (3)  <line> | <source code possibly altered>
+        (4)         : <hint marker>
   -}
-  let prefix = hardline <+> pipePrefix leftLen withUnicode
-   in prefix <+> annotate HintColor (notePrefix h <+> replaceLinesWith (prefix <+> "      ") (pretty $ noteMessage h))
-        <> prettyAllHints hs leftLen withUnicode
+
+  let marker = maybe (pure ()) showMarkerWithCode (noteMarker h)
+      prefix = hardline <+> pipePrefix leftLen conf
+
+  tell $ prefix <> space
+  tell $ annotate NoteTint (notePrefix h <+> replaceLinesWith (prefix <+> "      ") id (pretty $ noteMessage h))
+  marker
+
+  case noteMarker h of
+    Nothing
+      | null hs -> tell $ hardline <> space
+      | otherwise -> tell prefix
+    Just (Annotate _ (Just _)) -> tell $ hardline <> space
+    _ -> pure ()
+
+  prettyAllHints hs leftLen files conf sev tabSize
   where
-    notePrefix (Note _) = "Note:"
-    notePrefix (Hint _) = "Hint:"
+    notePrefix (Note _ _) = "Note:"
+    notePrefix (Hint _ _) = "Help:"
 
-    noteMessage (Note msg) = msg
-    noteMessage (Hint msg) = msg
+    noteMessage (Note msg _) = msg
+    noteMessage (Hint msg _) = msg
 
-safeArrayIndex :: (Ix i, IArray a e) => i -> a i e -> Maybe e
-safeArrayIndex i a
-  | Array.inRange (Array.bounds a) i = Just (a ! i)
-  | otherwise = Nothing
+    noteMarker (Note _ m) = m
+    noteMarker (Hint _ m) = m
+
+    showMarkerWithCode = prettySubReport files conf sev tabSize leftLen False . pure . Some

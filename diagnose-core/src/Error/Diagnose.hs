@@ -1,3 +1,5 @@
+{-# LANGUAGE Safe #-}
+
 module Error.Diagnose
   ( -- $header
 

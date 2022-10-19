@@ -1,9 +1,9 @@
 import
   (builtins.fetchTarball {
     name = "nixpkgs-pinned";
-    url = "https://github.com/nixos/nixpkgs/archive/a7ecde854aee5c4c7cd6177f54a99d2c1ff28a31.tar.gz";
+    url = "https://github.com/nixos/nixpkgs/archive/7b06206fa24198912cea58de690aa4943f238fbf.tar.gz";
     # Use `nix-prefetch-url --unpack <url>`
-    sha256 = "162dywda2dvfj1248afxc45kcrg83appjd0nmdb541hl7rnncf02";
+    sha256 = "0q53nmwj96gf9q0y6krbf7969w54ymni9wfrca25sqfdzjzk65bm";
   })
 { }
 

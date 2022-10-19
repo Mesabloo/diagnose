@@ -1,14 +1,16 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
+{-# LANGUAGE GADTs #-}
 {-# OPTIONS -Wno-name-shadowing #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE Trustworthy #-}
 
 -- |
 -- Module      : Error.Diagnose.Report.Internal
 -- Description : Internal workings for report definitions and pretty printing.
--- Copyright   : (c) Mesabloo, 2021-2022
+-- Copyright   : (c) Mesabloo and contributors, 2021-
 -- License     : BSD3
 -- Stability   : experimental
 -- Portability : Portable
@@ -17,20 +19,16 @@
 --            It is also highly undocumented.
 --
 --            Please limit yourself to the "Error.Diagnose.Report" module, which exports some of the useful functions defined here.
-module Error.Diagnose.Report.Internal
-  ( module Error.Diagnose.Report.Internal,
-    Report (.., Warn, Err),
-  )
-where
+module Error.Diagnose.Report.Internal where
 
 #ifdef USE_AESON
 import Data.Aeson (ToJSON(..), object, (.=))
 #endif
-import Control.Applicative ((<|>))
 import Data.Array.Unboxed (Array)
+import Data.Bifunctor (second)
 import Data.HashMap.Lazy (HashMap)
-import Data.String (IsString (fromString))
-import Error.Diagnose.Position
+import Data.Kind (Type)
+import Error.Diagnose.Position (SourcePosition, SourceRange (..))
 
 -- | A 'HashMap' associating a 'FilePath' to an array of lines indexed by line numbers.
 type FileMap = HashMap FilePath (Array Int String)
@@ -38,132 +36,100 @@ type FileMap = HashMap FilePath (Array Int String)
 -- | The type of diagnostic reports with abstract message type.
 data Report msg
   = Report
-      Bool
-      -- ^ Is the report a warning or an error?
+      Severity
+      -- ^ The severity of the report.
       (Maybe msg)
-      -- ^ An optional error code to print at the top.
+      -- ^ An optional error code to print with the report.
       msg
-      -- ^ The message associated with the error.
-      [(Position, Marker msg)]
-      -- ^ A map associating positions with marker to show under the source code.
+      -- ^ The message associated with the report.
+      [Marker msg 'MainMarker]
+      -- ^ A map associating positions to markers to show under the source code.
       [Note msg]
-      -- ^ A list of notes to add at the end of the report.
+      -- ^ A list of notes and hints to show various help information after the error.
 
--- | Pattern synonym for a warning report.
-pattern Warn :: Maybe msg -> msg -> [(Position, Marker msg)] -> [Note msg] -> Report msg
-pattern Warn errCode msg reports notes = Report False errCode msg reports notes
+-- | The severity of a report describes how much it is important to take into account.
+data Severity
+  = -- | A warning report, which is important but not necessary to fix.
+    Warning
+  | -- | An error report, which stops the whole pipeline.
+    Error
+  | -- | A critical report, indicating that something internally failed.
+    Critical
 
--- | Pattern synonym for an error report.
-pattern Err :: Maybe msg -> msg -> [(Position, Marker msg)] -> [Note msg] -> Report msg
-pattern Err errCode msg reports notes = Report True errCode msg reports notes
+-- | The kind of a marker, which indicates where it can occur.
+data MarkerKind
+  = -- | A marker which occurs in the main section of the report.
+    MainMarker
+  | -- | A marker which occurs only in notes.
+    NoteMarker
 
-{-# COMPLETE Warn, Err #-}
-
-instance Semigroup msg => Semigroup (Report msg) where
-  Report isError1 code1 msg1 pos1 hints1 <> Report isError2 code2 msg2 pos2 hints2 =
-    Report (isError1 || isError2) (code1 <|> code2) (msg1 <> msg2) (pos1 <> pos2) (hints1 <> hints2)
-
-instance Monoid msg => Monoid (Report msg) where
-  mempty = Report False Nothing mempty mempty mempty
+-- | The type of markers to be shown under source code.
+data Marker msg :: MarkerKind -> Type where
+  -- | A primary marker, which conveys the most important information (such as the location of an error).
+  Primary :: !SourceRange -> Maybe msg -> Marker msg 'MainMarker
+  -- | A secondary marker, which is meant to add extra information to the report.
+  Secondary :: !SourceRange -> Maybe msg -> Marker msg 'MainMarker
+  -- | A blank marker which is invisible but allows to include specific lines in the final report.
+  Blank :: !SourceRange -> Marker msg 'MainMarker
+  -- | We need a piece of code to be added inside the source code.
+  AddCode ::
+    -- | Where should we add the piece of code?
+    {-# UNPACK #-} !SourcePosition ->
+    -- | In which file should we add the piece of code?
+    !FilePath ->
+    {-# UNPACK #-} !Int ->
+    -- | The piece of code to add to the original source code.
+    String ->
+    Marker msg 'NoteMarker
+  -- | Code is requested to be deleted because it causes an error.
+  RemoveCode :: !SourceRange -> Marker msg 'NoteMarker
+  -- | A simple annotation under source code to add extra information in notes.
+  Annotate :: !SourceRange -> Maybe msg -> Marker msg 'NoteMarker
 
 #ifdef USE_AESON
+instance ToJSON Severity where
+  toJSON Warning = toJSON ("warning" :: String)
+  toJSON Error = toJSON ("error" :: String)
+  toJSON Critical = toJSON ("critical" :: String)
+
 instance ToJSON msg => ToJSON (Report msg) where
-  toJSON (Report isError code msg markers hints) =
-    object [ "kind" .= (if isError then "error" else "warning" :: String)
+  toJSON (Report sev code msg markers hints) =
+    object [ "kind" .= sev
            , "code" .= code
            , "message" .= msg
-           , "markers" .= fmap showMarker markers
-           , "hints" .= hints
+           , "markers" .= markers
+           , "notes" .= hints
            ]
     where
-      showMarker (pos, marker) =
-        object $ [ "position" .= pos ]
-              <> case marker of
-                   This m  -> [ "message" .= m
-                              , "kind" .= ("this" :: String)
-                              ]
-                   Where m -> [ "message" .= m
-                              , "kind" .= ("where" :: String)
-                              ]
-                   Maybe m -> [ "message" .= m
-                              , "kind" .= ("maybe" :: String)
-                              ]
-                   Blank -> [ "kind" .= ("blank" :: String) ]
+
+instance ToJSON msg => ToJSON (Marker msg k) where
+  toJSON (Primary pos m) = object [ "message" .= m, "kind" .= ("primary" :: String), "position" .= pos ]
+  toJSON (Secondary pos m) = object [ "message" .= m, "kind" .= ("secondary" :: String), "position" .= pos ]
+  toJSON (Blank pos) = object [ "kind" .= ("blank" :: String), "position" .= pos ]
+  toJSON (AddCode at file len code) = object [ "kind" .= ("add" :: String), "position" .= Range at (second (+ len) at) file, "code" .= code ]
+  toJSON (RemoveCode pos) = object [ "kind" .= ("remove" :: String), "position" .= pos ]
+  toJSON (Annotate pos m) = toJSON (Secondary pos m)
 #endif
-
--- | The type of markers with abstract message type, shown under code lines.
-data Marker msg
-  = -- | A red or yellow marker under source code, marking important parts of the code.
-    This msg
-  | -- | A blue marker symbolizing additional information.
-    Where msg
-  | -- | A magenta marker to report potential fixes.
-    Maybe msg
-  | -- | An empty marker, whose sole purpose is to include a line of code in the report without markers under.
-    Blank
-
-instance Eq (Marker msg) where
-  This _ == This _ = True
-  Where _ == Where _ = True
-  Maybe _ == Maybe _ = True
-  Blank == Blank = True
-  _ == _ = False
-  {-# INLINEABLE (==) #-}
-
-instance Ord (Marker msg) where
-  This _ < _ = False
-  Where _ < This _ = True
-  Where _ < _ = False
-  Maybe _ < _ = True
-  _ < Blank = True
-  Blank < _ = False
-  {-# INLINEABLE (<) #-}
-
-  m1 <= m2 = m1 < m2 || m1 == m2
-  {-# INLINEABLE (<=) #-}
 
 -- | A note is a piece of information that is found at the end of a report.
 data Note msg
   = -- | A note, which is meant to give valuable information related to the encountered error.
-    Note msg
+    Note msg (Maybe (Marker msg 'NoteMarker))
   | -- | A hint, to propose potential fixes or help towards fixing the issue.
-    Hint msg
+    Hint msg (Maybe (Marker msg 'NoteMarker))
 
 #ifdef USE_AESON
 instance ToJSON msg => ToJSON (Note msg) where
-  toJSON (Note msg) = object [ "note" .= msg ]
-  toJSON (Hint msg) = object [ "hint" .= msg ]
+  toJSON (Note m marks) = object [ "kind" .= ("note" :: String), "message" .= m, "markers" .= marks ]
+  toJSON (Hint m marks) = object [ "kind" .= ("hint" :: String), "message" .= m, "markers" .= marks ]
 #endif
-
--- | Constructs a 'Note' from the given message as a literal string.
-instance IsString msg => IsString (Note msg) where
-  fromString = Note . fromString
-
--- | Constructs a warning or an error report.
-warn,
-  err ::
-    -- | An optional error code to be shown right next to "error" or "warning".
-    Maybe msg ->
-    -- | The report message, shown at the very top.
-    msg ->
-    -- | A list associating positions with markers.
-    [(Position, Marker msg)] ->
-    -- | A possibly mempty list of hints to add at the end of the report.
-    [Note msg] ->
-    Report msg
-warn = Report False
-{-# INLINE warn #-}
-{-# DEPRECATED warn "'warn' is deprecated. Use 'Warn' instead." #-}
-err = Report True
-{-# INLINE err #-}
-{-# DEPRECATED err "'err' is deprecated. Use 'Err' instead." #-}
 
 -- | Transforms a warning report into an error report.
 warningToError :: Report msg -> Report msg
-warningToError (Report False code msg markers notes) = Report True code msg markers notes
-warningToError r@(Report True _ _ _ _) = r
+warningToError (Report Warning code msg markers notes) = Report Error code msg markers notes
+warningToError r@(Report {}) = r
 
 -- | Transforms an error report into a warning report.
 errorToWarning :: Report msg -> Report msg
-errorToWarning (Report True code msg markers notes) = Report False code msg markers notes
-errorToWarning r@(Report False _ _ _ _) = r
+errorToWarning (Report Error code msg markers notes) = Report Warning code msg markers notes
+errorToWarning r@(Report {}) = r

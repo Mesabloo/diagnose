@@ -4,10 +4,10 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 
-name:           diagnose-ariadne
+name:           diagnose-gcc
 version:        1.0.0
-synopsis:       Ariadne-like rendering for Diagnose.
-description:    This package simply provides an ariadne-like layout for diagnostic rendering.
+synopsis:       GCC-like rendering for Diagnose.
+description:    This package simply provides a GCC-like layout for diagnostic rendering.
 category:       Error Reporting
 homepage:       https://github.com/mesabloo/diagnose#readme
 bug-reports:    https://github.com/mesabloo/diagnose/issues
@@ -25,11 +25,11 @@ source-repository head
 
 library
   exposed-modules:
-      Error.Diagnose.Layout.Ariadne
-      Error.Diagnose.Layout.Ariadne.Style
+      Error.Diagnose.Layout.GCC
+      Error.Diagnose.Layout.GCC.Style
   other-modules:
-      Error.Diagnose.Layout.Ariadne.Config
-      Paths_diagnose_ariadne
+      Error.Diagnose.Layout.GCC.Config
+      Paths_diagnose_gcc
   hs-source-dirs:
       src
   default-extensions:
@@ -44,5 +44,4 @@ library
     , safe >=0.3 && <1
     , some >=1.0 && <2.0
     , transformers >=0.5 && <1.0
-    , unordered-containers ==0.2.*
   default-language: Haskell2010

@@ -1,24 +1,29 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 
-#ifdef USE_AESON
 import qualified Data.ByteString.Lazy as BS
-#endif
 import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
 import Error.Diagnose
   ( Marker (..),
-    Note (Hint),
-    Position (..),
+    Note (..),
     Report (..),
+    Severity (..),
+    SourceRange (..),
     addFile,
     addReport,
     def,
-    defaultStyle,
+    diagnosticToJson,
     printDiagnostic,
     stdout,
   )
 import Error.Diagnose.Layout.Ariadne (ariadneLayout)
+import Error.Diagnose.Layout.Ariadne.Style (ariadneStyle)
+import Error.Diagnose.Layout.GCC (gccLayout)
+import Error.Diagnose.Layout.GCC.Style (gccStyle)
+import Error.Diagnose.Layout.Typescript (typescriptLayout)
+import Error.Diagnose.Layout.Typescript.Style (typescriptStyle)
 import System.IO (hPutStrLn)
 
 main :: IO ()
@@ -38,13 +43,14 @@ main = do
         [ errorNoMarkersNoHints,
           errorSingleMarkerNoHints,
           warningSingleMarkerNoHints,
+          criticalSingleMarkerNoHints,
           errorTwoMarkersSameLineNoOverlapNoHints,
           errorSingleMarkerOutOfBoundsNoHints,
           errorTwoMarkersSameLineOverlapNoHints,
           errorTwoMarkersSameLinePartialOverlapNoHints,
           errorTwoMarkersTwoLinesNoHints,
           realWorldExample,
-          errorTwoMarkersSamePositionNoHints,
+          errorTwoMarkersSameRangeNoHints,
           errorThreeMarkersWithOverlapNoHints,
           errorWithMultilineErrorNoMarkerNoHints,
           errorSingleMultilineMarkerMessageNoHints,
@@ -72,24 +78,28 @@ main = do
           errorWithMultilineMarkerMessage',
           errorWithSingleBlankMarker,
           errorWithBlankAndNormalMarkerInLine,
+          errorWithAnnotationMarkersInNotes,
+          errorWithMultipleMarkersInNotes,
+          errorWithMultilineCodeAdditionInNote,
+          errorWithAMarkerOnFiveLines,
           beautifulExample
         ]
 
   let diag = HashMap.foldlWithKey' addFile (foldl addReport def reports) files
 
   hPutStrLn stdout "\n\nWith unicode: ─────────────────────────\n"
-  printDiagnostic stdout True True 4 defaultStyle ariadneLayout diag
+  printDiagnostic stdout True True 4 ariadneStyle ariadneLayout diag
   hPutStrLn stdout "\n\nWithout unicode: ----------------------\n"
-  printDiagnostic stdout False True 4 defaultStyle ariadneLayout diag
-#ifdef USE_AESON
-  hPutStrLn stdout "\n\nAs JSON: ------------------------------\n"
-  BS.hPutStr stdout (diagnosticToJson diag)
-#endif
-  hPutStrLn stdout "\n"
+  printDiagnostic stdout False True 4 ariadneStyle ariadneLayout diag
+
+-- hPutStrLn stdout "\n\nAs JSON: ------------------------------\n"
+-- BS.hPutStr stdout (diagnosticToJson diag)
+-- hPutStrLn stdout "\n"
 
 errorNoMarkersNoHints :: Report String
 errorNoMarkersNoHints =
-  Err
+  Report
+    Error
     Nothing
     "Error with no marker"
     []
@@ -97,103 +107,123 @@ errorNoMarkersNoHints =
 
 errorSingleMarkerNoHints :: Report String
 errorSingleMarkerNoHints =
-  Err
+  Report
+    Error
     Nothing
     "Error with one marker in bounds"
-    [(Position (1, 25) (1, 30) "test.zc", This "Required here")]
+    [Primary (Range (1, 25) (1, 30) "test.zc") $ Just "Required here"]
     []
 
 warningSingleMarkerNoHints :: Report String
 warningSingleMarkerNoHints =
-  Warn
+  Report
+    Warning
     Nothing
     "Warning with one marker in bounds"
-    [(Position (1, 25) (1, 30) "test.zc", This "Required here")]
+    [Primary (Range (1, 25) (1, 30) "test.zc") $ Just "Required here"]
+    []
+
+criticalSingleMarkerNoHints :: Report String
+criticalSingleMarkerNoHints =
+  Report
+    Critical
+    Nothing
+    "Critical with one marker in bounds"
+    [Primary (Range (1, 25) (1, 30) "test.zc") $ Just "Required here"]
     []
 
 errorTwoMarkersSameLineNoOverlapNoHints :: Report String
 errorTwoMarkersSameLineNoOverlapNoHints =
-  Err
+  Report
+    Error
     Nothing
     "Error with two markers in bounds (no overlap) on the same line"
-    [ (Position (1, 5) (1, 10) "test.zc", This "First"),
-      (Position (1, 15) (1, 22) "test.zc", Where "Second")
+    [ Primary (Range (1, 5) (1, 10) "test.zc") $ Just "First",
+      Secondary (Range (1, 15) (1, 22) "test.zc") $ Just "Second"
     ]
     []
 
 errorSingleMarkerOutOfBoundsNoHints :: Report String
 errorSingleMarkerOutOfBoundsNoHints =
-  Err
+  Report
+    Error
     Nothing
     "Error with one marker out of bounds"
-    [(Position (10, 5) (10, 15) "test2.zc", This "Out of bounds")]
+    [Primary (Range (10, 5) (10, 15) "test2.zc") $ Just "Out of bounds"]
     []
 
 errorTwoMarkersSameLineOverlapNoHints :: Report String
 errorTwoMarkersSameLineOverlapNoHints =
-  Err
+  Report
+    Error
     Nothing
     "Error with two overlapping markers in bounds"
-    [ (Position (1, 6) (1, 13) "test.zc", This "First"),
-      (Position (1, 10) (1, 15) "test.zc", Where "Second")
+    [ Primary (Range (1, 6) (1, 13) "test.zc") $ Just "First",
+      Secondary (Range (1, 10) (1, 15) "test.zc") $ Just "Second"
     ]
     []
 
 errorTwoMarkersSameLinePartialOverlapNoHints :: Report String
 errorTwoMarkersSameLinePartialOverlapNoHints =
-  Err
+  Report
+    Error
     Nothing
     "Error with two partially overlapping markers in bounds"
-    [ (Position (1, 5) (1, 25) "test.zc", This "First"),
-      (Position (1, 12) (1, 20) "test.zc", Where "Second")
+    [ Primary (Range (1, 5) (1, 25) "test.zc") $ Just "First",
+      Secondary (Range (1, 12) (1, 20) "test.zc") $ Just "Second"
     ]
     []
 
 errorTwoMarkersTwoLinesNoHints :: Report String
 errorTwoMarkersTwoLinesNoHints =
-  Err
+  Report
+    Error
     Nothing
     "Error with two markers on two lines in bounds"
-    [ (Position (1, 5) (1, 12) "test.zc", This "First"),
-      (Position (2, 3) (2, 4) "test.zc", Where "Second")
+    [ Primary (Range (1, 5) (1, 12) "test.zc") $ Just "First",
+      Secondary (Range (2, 3) (2, 4) "test.zc") $ Just "Second"
     ]
     []
 
 realWorldExample :: Report String
 realWorldExample =
-  Err
+  Report
+    Error
     Nothing
     "Could not deduce constraint 'Num(a)' from the current context"
-    [ (Position (1, 25) (1, 30) "test.zc", This "While applying function '+'"),
-      (Position (1, 11) (1, 16) "test.zc", Where "'x' is supposed to have type 'a'"),
-      (Position (1, 8) (1, 9) "test.zc", Where "type 'a' is bound here without constraints")
+    [ Primary (Range (1, 25) (1, 30) "test.zc") $ Just "While applying function '+'",
+      Secondary (Range (1, 11) (1, 16) "test.zc") $ Just "'x' is supposed to have type 'a'",
+      Secondary (Range (1, 8) (1, 9) "test.zc") $ Just "type 'a' is bound here without constraints"
     ]
-    ["Adding 'Num(a)' to the list of constraints may solve this problem."]
+    [Note "Adding 'Num(a)' to the list of constraints may solve this problem." Nothing]
 
-errorTwoMarkersSamePositionNoHints :: Report String
-errorTwoMarkersSamePositionNoHints =
-  Err
+errorTwoMarkersSameRangeNoHints :: Report String
+errorTwoMarkersSameRangeNoHints =
+  Report
+    Error
     Nothing
     "Error with two markers on the same exact position in bounds"
-    [ (Position (1, 6) (1, 10) "test.zc", This "First"),
-      (Position (1, 6) (1, 10) "test.zc", Maybe "Second")
+    [ Primary (Range (1, 6) (1, 10) "test.zc") $ Just "First",
+      Secondary (Range (1, 6) (1, 10) "test.zc") $ Just "Second"
     ]
     []
 
 errorThreeMarkersWithOverlapNoHints :: Report String
 errorThreeMarkersWithOverlapNoHints =
-  Err
+  Report
+    Error
     Nothing
     "Error with three markers with overlapping in bounds"
-    [ (Position (1, 9) (1, 15) "test.zc", This "First"),
-      (Position (1, 9) (1, 18) "test.zc", Maybe "Second"),
-      (Position (1, 6) (1, 10) "test.zc", Where "Third")
+    [ Primary (Range (1, 9) (1, 15) "test.zc") $ Just "First",
+      Secondary (Range (1, 9) (1, 18) "test.zc") $ Just "Second",
+      Secondary (Range (1, 6) (1, 10) "test.zc") $ Just "Third"
     ]
     []
 
 errorWithMultilineErrorNoMarkerNoHints :: Report String
 errorWithMultilineErrorNoMarkerNoHints =
-  Err
+  Report
+    Error
     Nothing
     "Error with multi\nline message and no markers"
     []
@@ -201,245 +231,319 @@ errorWithMultilineErrorNoMarkerNoHints =
 
 errorSingleMultilineMarkerMessageNoHints :: Report String
 errorSingleMultilineMarkerMessageNoHints =
-  Err
+  Report
+    Error
     Nothing
     "Error with single marker with multiline message"
-    [(Position (1, 9) (1, 15) "test.zc", This "First\nmultiline")]
+    [Primary (Range (1, 9) (1, 15) "test.zc") $ Just "First\nmultiline"]
     []
 
 errorTwoMarkersSameOriginOverlapNoHints :: Report String
 errorTwoMarkersSameOriginOverlapNoHints =
-  Err
+  Report
+    Error
     Nothing
     "Error with two markers with same origin but partial overlap in bounds"
-    [ (Position (1, 9) (1, 15) "test.zc", This "First"),
-      (Position (1, 9) (1, 20) "test.zc", Maybe "Second")
+    [ Primary (Range (1, 9) (1, 15) "test.zc") $ Just "First",
+      Secondary (Range (1, 9) (1, 20) "test.zc") $ Just "Second"
     ]
     []
 
 errorNoMarkersSingleHint :: Report String
 errorNoMarkersSingleHint =
-  Err
+  Report
+    Error
     Nothing
     "Error with no marker and one hint"
     []
-    ["First hint"]
+    [Note "First hint" Nothing]
 
 errorNoMarkersSingleMultilineHint :: Report String
 errorNoMarkersSingleMultilineHint =
-  Err
+  Report
+    Error
     Nothing
     "Error with no marker and one multiline hint"
     []
-    ["First multi\nline hint"]
+    [Note "First multi\nline hint" Nothing]
 
 errorNoMarkersTwoHints :: Report String
 errorNoMarkersTwoHints =
-  Err
+  Report
+    Error
     Nothing
     "Error with no markers and two hints"
     []
-    [ "First note",
-      Hint "Second hint"
+    [ Note "First note" Nothing,
+      Hint "Second hint" Nothing
     ]
 
 errorSingleMultilineMarkerNoHints :: Report String
 errorSingleMultilineMarkerNoHints =
-  Err
+  Report
+    Error
     Nothing
     "Error with single marker spanning across multiple lines"
-    [(Position (1, 15) (2, 6) "test.zc", This "First")]
+    [Primary (Range (1, 15) (2, 6) "test.zc") $ Just "First"]
     []
 
 errorTwoMarkersWithMultilineNoHints :: Report String
 errorTwoMarkersWithMultilineNoHints =
-  Err
+  Report
+    Error
     Nothing
     "Error with two markers, one single line and one multiline, in bounds"
-    [ (Position (1, 9) (1, 13) "test.zc", This "First"),
-      (Position (1, 14) (2, 6) "test.zc", Where "Second")
+    [ Primary (Range (1, 9) (1, 13) "test.zc") $ Just "First",
+      Secondary (Range (1, 14) (2, 6) "test.zc") $ Just "Second"
     ]
     []
 
 errorTwoMultilineMarkersNoHints :: Report String
 errorTwoMultilineMarkersNoHints =
-  Err
+  Report
+    Error
     Nothing
     "Error with two multiline markers in bounds"
-    [ (Position (1, 9) (2, 5) "test.zc", This "First"),
-      (Position (2, 1) (3, 10) "test.zc", Where "Second")
+    [ Primary (Range (1, 9) (2, 5) "test.zc") $ Just "First",
+      Secondary (Range (2, 1) (3, 10) "test.zc") $ Just "Second"
     ]
     []
 
 errorSingleMultilineMarkerMultilineMessageNoHints :: Report String
 errorSingleMultilineMarkerMultilineMessageNoHints =
-  Err
+  Report
+    Error
     Nothing
     "Error with one multiline marker with a multiline message in bounds"
-    [(Position (1, 9) (2, 5) "test.zc", This "Multi\nline message")]
+    [Primary (Range (1, 9) (2, 5) "test.zc") $ Just "Multi\nline message"]
     []
 
 errorTwoMultilineMarkersFirstMultilineMessageNoHints :: Report String
 errorTwoMultilineMarkersFirstMultilineMessageNoHints =
-  Err
+  Report
+    Error
     Nothing
     "Error with two multiline markers with one multiline message in bounds"
-    [ (Position (1, 9) (2, 5) "test.zc", This "First"),
-      (Position (1, 9) (2, 6) "test.zc", Where "Multi\nline message")
+    [ Primary (Range (1, 9) (2, 5) "test.zc") $ Just "First",
+      Secondary (Range (1, 9) (2, 6) "test.zc") $ Just "Multi\nline message"
     ]
     []
 
 errorThreeMultilineMarkersTwoMultilineMessageNoHints :: Report String
 errorThreeMultilineMarkersTwoMultilineMessageNoHints =
-  Err
+  Report
+    Error
     Nothing
     "Error with three multiline markers with two multiline messages in bounds"
-    [ (Position (1, 9) (2, 5) "test.zc", This "First"),
-      (Position (1, 9) (2, 6) "test.zc", Where "Multi\nline message"),
-      (Position (1, 9) (2, 7) "test.zc", Maybe "Multi\nline message #2")
+    [ Primary (Range (1, 9) (2, 5) "test.zc") $ Just "First",
+      Secondary (Range (1, 9) (2, 6) "test.zc") $ Just "Multi\nline message"
     ]
     []
 
 errorOrderSensitive :: Report String
 errorOrderSensitive =
-  Err
+  Report
+    Error
     Nothing
     "Order-sensitive labels with crossing"
-    [ (Position (1, 1) (1, 7) "somefile.zc", This "Leftmost label"),
-      (Position (1, 9) (1, 16) "somefile.zc", Where "Rightmost label")
+    [ Primary (Range (1, 1) (1, 7) "somefile.zc") $ Just "Leftmost label",
+      Secondary (Range (1, 9) (1, 16) "somefile.zc") $ Just "Rightmost label"
     ]
     []
 
 beautifulExample :: Report String
 beautifulExample =
-  Err
+  Report
+    Error
     Nothing
     "Could not deduce constraint 'Num(a)' from the current context"
-    [ (Position (1, 25) (2, 6) "somefile.zc", This "While applying function '+'"),
-      (Position (1, 11) (1, 16) "somefile.zc", Where "'x' is supposed to have type 'a'"),
-      (Position (1, 8) (1, 9) "somefile.zc", Where "type 'a' is bound here without constraints")
+    [ Primary (Range (1, 25) (2, 6) "somefile.zc") $ Just "While applying function '+'",
+      Secondary (Range (1, 11) (1, 16) "somefile.zc") $ Just "'x' is supposed to have type 'a'",
+      Secondary (Range (1, 8) (1, 9) "somefile.zc") $ Just "type 'a' is bound here without constraints"
     ]
-    ["Adding 'Num(a)' to the list of constraints may solve this problem."]
+    [ Hint
+        "Adding 'Num(a)' to the list of constraints may solve this problem."
+        (Just (AddCode (1, 9) "somefile.zc" 9 " | Num(a)"))
+    ]
 
 errorMultilineAfterSingleLine :: Report String
 errorMultilineAfterSingleLine =
-  Err
+  Report
+    Error
     Nothing
     "Multiline after single line"
-    [ (Position (1, 17) (1, 18) "unsized.nst", Where "Kind is infered from here"),
-      (Position (2, 14) (3, 0) "unsized.nst", This "is an error")
+    [ Secondary (Range (1, 17) (1, 18) "unsized.nst") $ Just "Kind is infered from here",
+      Primary (Range (2, 14) (3, 0) "unsized.nst") $ Just "is an error"
     ]
     []
 
 errorOnEmptyLine :: Report String
 errorOnEmptyLine =
-  Err
+  Report
+    Error
     Nothing
     "Error on empty line"
-    [(Position (1, 5) (3, 8) "err.nst", This "error on empty line")]
+    [Primary (Range (1, 5) (3, 8) "err.nst") $ Just "error on empty line"]
     []
 
 errorMultipleFiles :: Report String
 errorMultipleFiles =
-  Err
+  Report
+    Error
     Nothing
     "Error on multiple files"
-    [ (Position (1, 5) (1, 7) "test.zc", Where "Function already declared here"),
-      (Position (1, 5) (1, 7) "somefile.zc", This "Function `id` is already declared in another module")
+    [ Secondary (Range (1, 5) (1, 7) "test.zc") $ Just "Function already declared here",
+      Primary (Range (1, 5) (1, 7) "somefile.zc") $ Just "Function `id` is already declared in another module"
     ]
     []
 
 errorWithCode :: Report String
 errorWithCode =
-  Err
+  Report
+    Error
     (Just "E0123")
     "Error with code and markers"
-    [(Position (1, 5) (1, 7) "test.zc", This "is an error")]
+    [Primary (Range (1, 5) (1, 7) "test.zc") $ Just "is an error"]
     []
 
 errorWithStrangeUnicodeInput :: Report String
 errorWithStrangeUnicodeInput =
-  Err
+  Report
+    Error
     (Just "❎")
     "ⓈⓉⓇⒶⓃⒼⒺ ⓊⓃⒾⒸⓄⒹⒺ"
-    [ (Position (1, 1) (1, 7) "unicode.txt", This "should work fine 🎉"),
-      (Position (1, 7) (1, 9) "unicode.txt", Where "After TAB")
+    [ Primary (Range (1, 1) (1, 7) "unicode.txt") $ Just "should work fine 🎉",
+      Secondary (Range (1, 7) (1, 9) "unicode.txt") $ Just "After TAB"
     ]
     []
 
 errorWithMultilineMarkerOn3Lines :: Report String
 errorWithMultilineMarkerOn3Lines =
-  Err
+  Report
+    Error
     Nothing
     "Multiline marker on 3 lines"
-    [(Position (1, 3) (3, 10) "test.zc", This "should color all 3 lines correctly")]
+    [Primary (Range (1, 3) (3, 10) "test.zc") $ Just "should color all 3 lines correctly"]
     []
 
 errorMultilineMarkerNotAtEnd :: Report String
 errorMultilineMarkerNotAtEnd =
-  Err
+  Report
+    Error
     Nothing
     "Multiline marker not at end of report"
-    [ (Position (1, 10) (2, 3) "test.zc", This "is a multline marker"),
-      (Position (3, 5) (3, 13) "test.zc", Where "inline marker found after")
+    [ Primary (Range (1, 10) (2, 3) "test.zc") $ Just "is a multline marker",
+      Secondary (Range (3, 5) (3, 13) "test.zc") $ Just "inline marker found after"
     ]
     []
 
 errorWithLineGap :: Report String
 errorWithLineGap =
-  Err
+  Report
+    Error
     Nothing
     "Error with line gaps between two markers"
-    [ (Position (1, 1) (1, 3) "gaps.txt", Where "is a first marker"),
-      (Position (5, 2) (5, 4) "gaps.txt", This "is the main marker")
+    [ Secondary (Range (1, 1) (1, 3) "gaps.txt") $ Just "is a first marker",
+      Primary (Range (5, 2) (5, 4) "gaps.txt") $ Just "is the main marker"
     ]
     []
 
 errorWithMultilineMarkerMessage :: Report String
 errorWithMultilineMarkerMessage =
-  Err
+  Report
+    Error
     Nothing
     "Error with multiline message in first marker"
-    [ (Position (1, 5) (1, 10) "test.zc", This "First\nmarker"),
-      (Position (1, 15) (1, 22) "test.zc", Where "Second")
+    [ Primary (Range (1, 5) (1, 10) "test.zc") $ Just "First\nmarker",
+      Secondary (Range (1, 15) (1, 22) "test.zc") $ Just "Second"
     ]
     []
 
 errorWithMultilineMarkerMessage' :: Report String
 errorWithMultilineMarkerMessage' =
-  Err
+  Report
+    Error
     Nothing
     "Error with multiline message in first marker"
-    [ (Position (1, 5) (1, 10) "test.zc", This "First\nmarker"),
-      (Position (1, 15) (1, 22) "test.zc", Where "Second"),
-      (Position (1, 10) (1, 15) "test.zc", Maybe "Third")
+    [ Primary (Range (1, 5) (1, 10) "test.zc") $ Just "First\nmarker",
+      Secondary (Range (1, 15) (1, 22) "test.zc") $ Just "Second"
     ]
     []
 
 repro3 :: Report String
 repro3 =
-  Err
+  Report
+    Error
     (Just "WrongStaticLayerLength")
     "The length of the static layer does not match the length of the template it uses"
-    [ (Position (3, 3) (5, 16) "repro3.file", Where "This template has 9 elements"),
-      (Position (24, 28) (24, 39) "repro3.file", This "... but this layer only has 3 members"),
-      (Position (24, 21) (24, 26) "repro3.file", Where "This is the template being used"),
-      (Position (24, 7) (24, 15) "repro3.file", Where "while checking this static layer")
+    [ Secondary (Range (3, 3) (5, 16) "repro3.file") $ Just "This template has 9 elements",
+      Primary (Range (24, 28) (24, 39) "repro3.file") $ Just "... but this layer only has 3 members",
+      Secondary (Range (24, 21) (24, 26) "repro3.file") $ Just "This is the template being used",
+      Secondary (Range (24, 7) (24, 15) "repro3.file") $ Just "while checking this static layer"
     ]
     []
 
 errorWithSingleBlankMarker :: Report String
 errorWithSingleBlankMarker =
-  Err
+  Report
+    Error
     Nothing
     "Error with a single blank marker"
-    [(Position (1, 5) (1, 10) "test.zc", Blank)]
+    [Blank (Range (1, 5) (1, 10) "test.zc")]
     []
 
 errorWithBlankAndNormalMarkerInLine :: Report String
 errorWithBlankAndNormalMarkerInLine =
-  Err
+  Report
+    Error
     Nothing
     "Error with a single blank marker"
-    [(Position (1, 5) (1, 10) "test.zc", Blank), (Position (1, 15) (1, 22) "test.zc", This "After a blank")]
+    [ Blank (Range (1, 5) (1, 10) "test.zc"),
+      Primary (Range (1, 15) (1, 22) "test.zc") $ Just "After a blank"
+    ]
+    []
+
+errorWithAnnotationMarkersInNotes :: Report String
+errorWithAnnotationMarkersInNotes =
+  Report
+    Error
+    Nothing
+    "Error with a single primary marker and an annotation in a note"
+    [Primary (Range (1, 5) (1, 10) "test.zc") $ Just "Because why not"]
+    [ Note
+        "This contains additional information"
+        (Just (Annotate (Range (1, 15) (1, 22) "test.zc") $ Just "hello!"))
+    ]
+
+errorWithMultipleMarkersInNotes :: Report String
+errorWithMultipleMarkersInNotes =
+  Report
+    Error
+    Nothing
+    "Error with a single primary marker and multiple markers in a note"
+    [Primary (Range (1, 5) (1, 10) "test.zc") $ Just "Because why not"]
+    [ Note
+        "This contains additional information"
+        (Just (RemoveCode (Range (1, 10) (1, 16) "test.zc")))
+    ]
+
+errorWithMultilineCodeAdditionInNote :: Report String
+errorWithMultilineCodeAdditionInNote =
+  Report
+    Error
+    Nothing
+    "Error with a multiline code addition in a note"
+    [Primary (Range (1, 5) (1, 10) "test.zc") $ Just "Because why not"]
+    [ Note
+        "This contains additional information"
+        (Just (AddCode (1, 15) "test.zc" 12 "Hello\nWorld "))
+    ]
+
+errorWithAMarkerOnFiveLines :: Report String
+errorWithAMarkerOnFiveLines =
+  Report
+    Error
+    Nothing
+    "Error with a marker on five lines"
+    [Primary (Range (1, 2) (6, 3) "gaps.txt") $ Just "Should take all 6 lines"]
     []

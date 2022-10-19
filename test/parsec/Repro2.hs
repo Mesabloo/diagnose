@@ -8,7 +8,8 @@ module Repro2 where
 import Data.Void
 import Error.Diagnose
 import Error.Diagnose.Compat.Parsec
-import Error.Diagnose.Layout.Ariadne (ariadneLayout)
+import Error.Diagnose.Layout.GCC (gccLayout)
+import Error.Diagnose.Layout.GCC.Style (gccStyle)
 import Text.Parsec
 import Text.Parsec.Token
 
@@ -30,8 +31,8 @@ parser2 = op' "\\" *> letter
 
 main :: IO ()
 main = do
-  either (printDiagnostic stderr True True 4 defaultStyle ariadneLayout) print $ diagParse parser1 "issues/2.txt" "\\1"
-  either (printDiagnostic stderr True True 4 defaultStyle ariadneLayout) print $ diagParse parser2 "issues/2.txt" "\\1"
+  either (printDiagnostic stderr True True 4 gccStyle gccLayout) print $ diagParse parser1 "issues/2.txt" "\\1"
+  either (printDiagnostic stderr True True 4 gccStyle gccLayout) print $ diagParse parser2 "issues/2.txt" "\\1"
 
 -- smaller example
 op' :: String -> Parser String

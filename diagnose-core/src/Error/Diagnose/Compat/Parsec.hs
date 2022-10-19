@@ -1,8 +1,8 @@
+{-# OPTIONS -Wno-name-shadowing #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
-
-{-# OPTIONS -Wno-name-shadowing #-}
 
 -- |
 -- Module      : Error.Diagnose.Compat.Parsec
@@ -34,7 +34,7 @@ diagnosticFromParseError ::
   forall msg.
   (IsString msg, HasHints Void msg) =>
   -- | Determine whether the diagnostic is an error or a warning
-  (PE.ParseError -> Bool) ->
+  (PE.ParseError -> Severity) ->
   -- | An optional error code
   Maybe msg ->
   -- | The main error of the diagnostic
@@ -44,20 +44,20 @@ diagnosticFromParseError ::
   -- | The 'PE.ParseError' to transform into a 'Diagnostic'
   PE.ParseError ->
   Diagnostic msg
-diagnosticFromParseError isError code msg (fromMaybe [] -> defaultHints) error =
+diagnosticFromParseError sev code msg (fromMaybe [] -> defaultHints) error =
   let pos = fromSourcePos $ PE.errorPos error
       markers = toMarkers pos $ PE.errorMessages error
-      report = (if isError error then Err code msg else Warn code msg) markers (defaultHints <> hints (undefined :: Void))
+      report = Report (sev error) code msg markers (defaultHints <> hints (undefined :: Void))
    in addReport def report
   where
-    fromSourcePos :: PP.SourcePos -> Position
+    fromSourcePos :: PP.SourcePos -> SourceRange
     fromSourcePos pos =
       let start = both fromIntegral (PP.sourceLine pos, PP.sourceColumn pos)
           end = second (+ 1) start
-       in Position start end (PP.sourceName pos)
+       in Range start end (PP.sourceName pos)
 
-    toMarkers :: Position -> [PE.Message] -> [(Position, Marker msg)]
-    toMarkers source [] = [(source, This $ fromString "<<unknown error>>")]
+    toMarkers :: SourceRange -> [PE.Message] -> [Marker msg 'MainMarker]
+    toMarkers source [] = [Primary source . Just $ fromString "<<unknown error>>"]
     toMarkers source msgs =
       let putTogether [] = ([], [], [], [])
           putTogether (PE.SysUnExpect thing : ms) = let (a, b, c, d) = putTogether ms in (thing : a, b, c, d)
@@ -69,9 +69,9 @@ diagnosticFromParseError isError code msg (fromMaybe [] -> defaultHints) error =
 
           firstSysUnexpectedMessage = head sysUnexpectedList
           unexpectedMessage = "unexpected " <> if null unexpectedList then if null firstSysUnexpectedMessage then "end of line" else firstSysUnexpectedMessage else intercalate ", " (filter (not . null) unexpectedList)
-       in [ (source, This $ fromString unexpectedMessage) ]
-            <> [ (source, This $ fromString msg) | msg <- messages ]
-            <> [ (source, Where $ fromString $ "expecting any of " <> intercalate ", " (filter (not . null) expectedList)) ]
+       in [Primary source . Just $ fromString unexpectedMessage]
+            <> [Primary source . Just $ fromString msg | msg <- messages]
+            <> [Secondary source . Just . fromString $ "expecting any of " <> intercalate ", " (filter (not . null) expectedList)]
 
 -- | Generates an error diagnostic from a 'PE.ParseError'.
 errorDiagnosticFromParseError ::
@@ -86,7 +86,7 @@ errorDiagnosticFromParseError ::
   -- | The 'PE.ParseError' to convert
   PE.ParseError ->
   Diagnostic msg
-errorDiagnosticFromParseError = diagnosticFromParseError (const True)
+errorDiagnosticFromParseError = diagnosticFromParseError (const Error)
 
 -- | Generates a warning diagnostic from a 'PE.ParseError'.
 warningDiagnosticFromParseError ::
@@ -101,7 +101,7 @@ warningDiagnosticFromParseError ::
   -- | The 'PE.ParseError' to convert
   PE.ParseError ->
   Diagnostic msg
-warningDiagnosticFromParseError = diagnosticFromParseError (const False)
+warningDiagnosticFromParseError = diagnosticFromParseError (const Warning)
 
 ------------------------------------
 ------------ INTERNAL --------------

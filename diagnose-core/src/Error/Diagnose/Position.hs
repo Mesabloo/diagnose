@@ -1,44 +1,60 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE Trustworthy #-}
 {-# LANGUAGE TypeApplications #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- |
 -- Module      : Error.Diagnose.Diagnostic
 -- Description : Defines location information as a simple record.
--- Copyright   : (c) Mesabloo, 2021-2022
+-- Copyright   : (c) Mesabloo and contributors, 2021-
 -- License     : BSD3
 -- Stability   : experimental
 -- Portability : Portable
-module Error.Diagnose.Position (Position (..)) where
+module Error.Diagnose.Position (SourceRange (.., Position), Position, SourcePosition) where
 
 #ifdef USE_AESON
 import Data.Aeson (ToJSON(..), object, (.=))
 #endif
 import Data.Default (Default, def)
 import Data.Hashable (Hashable)
+import Error.Diagnose.Pretty (Pretty (..), colon)
 import GHC.Generics (Generic (..))
-import Prettyprinter (Pretty (..), colon)
 
--- import Text.PrettyPrint.ANSI.Leijen (Pretty(..), text, colon, int)
+-- | A source position in Unicode code points.
+--
+--   The first component records the line, and the second component records the column.
+type SourcePosition = (Int, Int)
+
+-- | A deprecated alias to 'SourceRange'.
+type Position = SourceRange
+
+{-# DEPRECATED Position "Use 'SourceRange' instead." #-}
+pattern Position :: SourcePosition -> SourcePosition -> FilePath -> SourceRange
+pattern Position a b c = Range a b c
+
+{-# COMPLETE Position #-}
 
 -- | Contains information about the location of something.
 --
 --   It is best used in a datatype like:
 --
 --   > data Located a
---   >   = a :@ Position
+--   >   = a :@ SourceRange
 --   >   deriving (Show, Eq, Ord, Functor, Traversable)
 --
 --   Columns are specified in amount of Unicode codepoints from the beginning of the line.
 --   Lines and columns start at 1.
-data Position = Position
+data SourceRange = Range
   { -- | The beginning line and column of the span.
-    begin :: (Int, Int),
+    begin :: {-# UNPACK #-} !SourcePosition,
     -- | The end line and column of the span.
-    end :: (Int, Int),
+    end :: {-# UNPACK #-} !SourcePosition,
     -- | The file this position spans in.
-    file :: FilePath
+    file :: !FilePath
   }
   deriving (Show, Eq, Generic)
 
@@ -54,13 +70,16 @@ instance Pretty Position where
 instance Hashable Position
 
 instance Default Position where
-  def = Position (1, 1) (1, 1) "<no-file>"
+  def = Range (1, 1) (1, 1) "<no-file>"
 
 #ifdef USE_AESON
+instance {-# OVERLAPPING #-} ToJSON SourcePosition where
+  toJSON (l, c) = object [ "line" .= l, "column" .= c ]
+
 instance ToJSON Position where
-  toJSON (Position (bl, bc) (el, ec) file) =
-    object [ "beginning" .= object [ "line" .= bl, "column" .= bc ]
-           , "end" .= object [ "line" .= el, "column" .= ec ]
+  toJSON (Range begin end file) =
+    object [ "beginning" .= begin
+           , "end" .= end
            , "file" .= file
            ]
 #endif

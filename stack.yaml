@@ -31,6 +31,8 @@ resolver: lts-18.28
 packages:
 - diagnose-core
 - diagnose-ariadne
+- diagnose-gcc
+- diagnose-typescript
 - .
 # Dependency packages to be pulled from upstream that are not in the resolver.
 # These entries can reference officially published versions as well as
@@ -42,7 +44,7 @@ packages:
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
 #
 # extra-deps: []
-extra-deps:
+extra-deps: []
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

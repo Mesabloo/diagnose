@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.7.
+-- This file has been generated from package.yaml by hpack version 0.35.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -33,11 +33,11 @@ test-suite diagnose-megaparsec-tests
       OverloadedStrings
       LambdaCase
       BlockArguments
-  ghc-options: -Wall -Wextra -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wextra -threaded -rtsopts -with-rtsopts=-N -Wno-type-defaults
   build-depends:
       base >=4.7 && <5
     , diagnose
-    , diagnose-ariadne
+    , diagnose-gcc
     , megaparsec >=9.0.0
     , text >=1.2 && <3
     , unordered-containers ==0.2.*
@@ -55,11 +55,11 @@ test-suite diagnose-parsec-tests
       OverloadedStrings
       LambdaCase
       BlockArguments
-  ghc-options: -Wall -Wextra -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wextra -threaded -rtsopts -with-rtsopts=-N -Wno-type-defaults
   build-depends:
       base >=4.7 && <5
     , diagnose
-    , diagnose-ariadne
+    , diagnose-gcc
     , parsec >=3.1.14
     , text >=1.2 && <3
     , unordered-containers ==0.2.*
@@ -76,10 +76,13 @@ test-suite diagnose-rendering-tests
       OverloadedStrings
       LambdaCase
       BlockArguments
-  ghc-options: -Wall -Wextra -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wextra -threaded -rtsopts -with-rtsopts=-N -Wno-type-defaults
   build-depends:
       base >=4.7 && <5
+    , bytestring
     , diagnose
     , diagnose-ariadne
+    , diagnose-gcc
+    , diagnose-typescript
     , unordered-containers ==0.2.*
   default-language: Haskell2010

@@ -1,11 +1,12 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE Trustworthy #-}
 
 -- |
 -- Module      : Error.Diagnose.Diagnostic.Internal
 -- Description : Internal workings for diagnostic definitions and pretty printing.
--- Copyright   : (c) Mesabloo, 2021-2022
+-- Copyright   : (c) Mesabloo and contributors, 2021-
 -- License     : BSD3
 -- Stability   : experimental
 -- Portability : Portable
@@ -28,11 +29,10 @@ import qualified Data.DList as DL
 import Data.Default (Default, def)
 import Data.Foldable (toList)
 import qualified Data.HashMap.Lazy as HashMap
+import Error.Diagnose.Pretty (Doc, Pretty, hPutDoc, unAnnotate)
 import Error.Diagnose.Report (Report)
 import Error.Diagnose.Report.Internal (FileMap, errorToWarning, warningToError)
-import Error.Diagnose.Style (Annotation, Style)
-import Prettyprinter (Doc, Pretty, unAnnotate)
-import Prettyprinter.Render.Terminal (hPutDoc)
+import Error.Diagnose.Style (IsAnnotation, Style)
 import System.IO (Handle)
 
 -- | The data type for diagnostic containing messages of an abstract type.
@@ -94,12 +94,12 @@ errorsToWarnings (Diagnostic reports files) = Diagnostic (errorToWarning <$> rep
 -- - The second argument is the number of spaces which must be used to render a @TAB@ character
 -- - The third argument is the diagnostic to render
 --
--- The resulting 'Doc'ument contains unprocessed style 'Annotation's.
-type Layout msg = Pretty msg => Bool -> Int -> Diagnostic msg -> Doc Annotation
+-- The resulting 'Doc'ument contains unprocessed style annotations.
+type Layout msg ann = (IsAnnotation ann, Pretty msg) => Bool -> Int -> Diagnostic msg -> Doc ann
 
 -- | Prints a 'Diagnostic' onto a specific 'Handle'.
 printDiagnostic ::
-  (MonadIO m, Pretty msg) =>
+  (MonadIO m, Pretty msg, IsAnnotation ann) =>
   -- | The handle onto which to output the diagnostic.
   Handle ->
   -- | Should we print with unicode characters?
@@ -109,9 +109,9 @@ printDiagnostic ::
   -- | The number of spaces each TAB character will span.
   Int ->
   -- | The style in which to output the diagnostic.
-  Style ->
+  Style ann ->
   -- | The layout to use to render the diagnostic.
-  Layout msg ->
+  Layout msg ann ->
   -- | The diagnostic to output.
   Diagnostic msg ->
   m ()

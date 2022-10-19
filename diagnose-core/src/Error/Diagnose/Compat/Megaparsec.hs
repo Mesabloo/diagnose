@@ -36,7 +36,7 @@ diagnosticFromBundle ::
   forall msg s e.
   (IsString msg, MP.Stream s, HasHints e msg, MP.ShowErrorComponent e, MP.VisualStream s, MP.TraversableStream s) =>
   -- | How to decide whether this is an error or a warning diagnostic
-  (MP.ParseError s e -> Bool) ->
+  (MP.ParseError s e -> Severity) ->
   -- | An optional error code
   Maybe msg ->
   -- | The error message of the diagnostic
@@ -46,7 +46,7 @@ diagnosticFromBundle ::
   -- | The bundle to create a diagnostic from
   MP.ParseErrorBundle s e ->
   Diagnostic msg
-diagnosticFromBundle isError code msg (fromMaybe [] -> trivialHints) MP.ParseErrorBundle {..} =
+diagnosticFromBundle sev code msg (fromMaybe [] -> trivialHints) MP.ParseErrorBundle {..} =
   foldl addReport def (toLabeledPosition <$> bundleErrors)
   where
     toLabeledPosition :: MP.ParseError s e -> Report msg
@@ -55,18 +55,18 @@ diagnosticFromBundle isError code msg (fromMaybe [] -> trivialHints) MP.ParseErr
           source = fromSourcePos (MP.pstateSourcePos pos)
           msgs = fromString @msg <$> lines (MP.parseErrorTextPretty error)
        in flip
-            (if isError error then Err code msg else Warn code msg)
+            (Report (sev error) code msg)
             (errorHints error)
             if
-                | [m] <- msgs -> [(source, This m)]
-                | [m1, m2] <- msgs -> [(source, This m1), (source, Where m2)]
-                | otherwise -> [(source, This $ fromString "<<Unknown error>>")]
+                | [m] <- msgs -> [Primary source (Just m)]
+                | [m1, m2] <- msgs -> [Primary source (Just m1), Secondary source (Just m2)]
+                | otherwise -> [Primary source . Just $ fromString "<<Unknown error>>"]
 
-    fromSourcePos :: MP.SourcePos -> Position
+    fromSourcePos :: MP.SourcePos -> SourceRange
     fromSourcePos MP.SourcePos {..} =
       let start = both (fromIntegral . MP.unPos) (sourceLine, sourceColumn)
           end = second (+ 1) start
-       in Position start end sourceName
+       in Range start end sourceName
 
     errorHints :: MP.ParseError s e -> [Note msg]
     errorHints MP.TrivialError {} = trivialHints
@@ -88,7 +88,7 @@ errorDiagnosticFromBundle ::
   -- | The bundle to create a diagnostic from
   MP.ParseErrorBundle s e ->
   Diagnostic msg
-errorDiagnosticFromBundle = diagnosticFromBundle (const True)
+errorDiagnosticFromBundle = diagnosticFromBundle (const Error)
 
 -- | Creates a warning diagnostic from a megaparsec 'MP.ParseErrorBundle'.
 warningDiagnosticFromBundle ::
@@ -103,7 +103,7 @@ warningDiagnosticFromBundle ::
   -- | The bundle to create a diagnostic from
   MP.ParseErrorBundle s e ->
   Diagnostic msg
-warningDiagnosticFromBundle = diagnosticFromBundle (const False)
+warningDiagnosticFromBundle = diagnosticFromBundle (const Warning)
 
 ------------------------------------
 ------------ INTERNAL --------------

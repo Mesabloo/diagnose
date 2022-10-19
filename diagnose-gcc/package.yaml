@@ -1,4 +1,4 @@
-name: diagnose-ariadne
+name: diagnose-gcc
 version: 1.0.0
 github: "mesabloo/diagnose"
 license: BSD3
@@ -10,11 +10,10 @@ dependencies:
 - base >= 4.7 && < 5
 - diagnose >=3.0.0
 - array >= 0.5 && < 0.6
-- unordered-containers >= 0.2 && < 0.3
 - safe >= 0.3 && < 1
 - some >= 1.0 && < 2.0
 - transformers >= 0.5 && < 1.0
-  
+
 default-extensions:
 - OverloadedStrings
 - LambdaCase
@@ -23,8 +22,8 @@ default-extensions:
 library:
   source-dirs: src
   exposed-modules:
-  - Error.Diagnose.Layout.Ariadne
-  - Error.Diagnose.Layout.Ariadne.Style
+  - Error.Diagnose.Layout.GCC
+  - Error.Diagnose.Layout.GCC.Style
 
 ghc-options:
 - -Wall
@@ -36,7 +35,7 @@ extra-source-files:
 - README.md
 
 # This is put at the end for convenience.
-synopsis: Ariadne-like rendering for Diagnose.
+synopsis: GCC-like rendering for Diagnose.
  
 description: |
-  This package simply provides an ariadne-like layout for diagnostic rendering.
+  This package simply provides a GCC-like layout for diagnostic rendering.

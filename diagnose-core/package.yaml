@@ -15,6 +15,11 @@ dependencies:
 - prettyprinter >= 1.7.0 && < 2
 - prettyprinter-ansi-terminal >= 1.1.0 && < 2
 - unordered-containers >= 0.2 && < 0.3
+- wcwidth >= 0.0.1 && < 1.0.0
+- text >= 1.0.0.0 && <= 2.0
+# ^^^ This is unfortunately required, but as 'prettyprinter' already depends on it, it will already have been fetched
+# into the local cache anyway.
+- some >= 1.0 && < 2.0
 
 default-extensions:
 - OverloadedStrings
@@ -31,6 +36,7 @@ library:
   - Error.Diagnose.Pretty
   - Error.Diagnose.Report
   - Error.Diagnose.Style
+  - Error.Diagnose.Utils
   when:
   - condition: flag(megaparsec-compat)
     exposed-modules:
