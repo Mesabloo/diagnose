@@ -650,7 +650,10 @@ prettyAllHints (h : hs) leftLen files conf sev tabSize = do
     Nothing
       | null hs -> tell $ hardline <> space
       | otherwise -> tell prefix
-    Just (Annotate _ (Just _)) -> tell $ hardline <> space
+    Just (Annotate _ (Just _)) -> do
+      tell $ hardline <> space
+      unless (null hs) do
+        tell $ pipePrefix leftLen conf
     _ -> pure ()
 
   prettyAllHints hs leftLen files conf sev tabSize
