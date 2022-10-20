@@ -1,5 +1,15 @@
 {-# LANGUAGE Safe #-}
 
+-- |
+-- Module      : Error.Diagnose
+-- Description : A quick tutorial on the use of this library.
+-- Copyright   : (c) Mesabloo and contributors, 2021-
+-- License     : BSD3
+-- Stability   : experimental
+-- Portability : Portable
+--
+-- This module is the main entry point of this library and is the only one which is required to be imported when using
+-- this library because it already exports everything needed.
 module Error.Diagnose
   ( -- $header
 
@@ -33,12 +43,16 @@ module Error.Diagnose
     -- *** Common errors
     -- $compatibility_errors
 
+    -- ** Writing layouts and styles
+    -- $layout_and_styles
+
     -- * Re-exports
     module Export,
   )
 where
 
 import Error.Diagnose.Diagnostic as Export
+import Error.Diagnose.Layout as Export
 import Error.Diagnose.Position as Export
 import Error.Diagnose.Pretty as Export
 import Error.Diagnose.Report as Export
@@ -61,64 +75,72 @@ import Error.Diagnose.Style as Export
 --
 --   A report contains:
 --
---   - A message, to be shown at the top
+--   - A message, to be shown at the top (with an optional error code);
 --
---   - A list of located markers, used to underline parts of the source code and to emphasize it with a message
+--   - A list of located markers, used to underline parts of the source code and to emphasize it with a message;
 --
---   - A list of hints, shown at the very bottom
+--   - A list of hints, shown at the very bottom;
 --
 --   __Note__: The message type contained in a report is abstracted by a type variable.
 --             In order to render the report, the message must also be able to be rendered in some way
 --             (that we'll see later).
 --
---   This library allows defining two kinds of reports:
+--   This library allows defining reports using the 'Report' constructor, which has the following type:
 --
---   - Errors, using 'Err'
+--   > Report ::
+--   >   Severity ->                   -- (1)
+--   >   Maybe msg ->                  -- (2)
+--   >   msg ->                        -- (3)
+--   >   [Marker msg 'MainMarker] ->   -- (4)
+--   >   [Note msg] ->                 -- (5)
+--   >   Report msg
 --
---   - Warnings, using 'Warn'
+--   1. The 'Error.Diagnose.Report.Severity' tells whether the report is for an 'Error.Diagnose.Report.Error', a 'Error.Diagnose.Report.Warning' or a 'Error.Diagnose.Report.Critical' error;
 --
---   Both take an optional error code, a message, a list of located markers and a list of hints.
+--   2. This parameter is an optional error code to be shown along with the report.
+--      This can be useful if you are maintaining a more thorough documentation on each error, explaining what they are and why they exist;
+--
+--   3. This is the error message to be shown in the report.
+--      In general, this is short and concise;
+--
+--   4. This list may only contain 'Error.Diagnose.Report.Primary', 'Error.Diagnose.Report.Secondary' or 'Error.Diagnose.Report.Blank' markers.
+--      They are described a bit later on;
+--
+--   5. And finally, a list of notes or hints for example to include links to the documentation, potential fixes (along with adding source code!), etc.
 --
 --   A very simple example is:
 --
 --   > exampleReport :: Report String
 --   > exampleReport =
---   >   Err
+--   >   Report
+--   >     -- vv Report severity
+--   >     Error
 --   >     -- vv  OPTIONAL ERROR CODE
 --   >     Nothing
 --   >     -- vv  ERROR MESSAGE
 --   >     "This is my first error report"
 --   >     -- vv  MARKERS
---   >     [ (Position (1, 3) (1, 8) "some_test.txt", This "Some text under the marker") ]
+--   >     [ Primary (Range (1, 3) (1, 8) "some_test.txt") $ Just "Some text under the marker") ]
 --   >     -- vv  HINTS
 --   >     []
 --
---   In general, 'Position's are returned by either a lexer or a parser, so that you never have to construct them
+--   In general, 'SourceRange's are returned by either a lexer or a parser, so that you never have to construct them
 --   directly in the code.
 --
---   __Note__: If using any parser library, you will have to convert from the internal positioning system to a 'Position'
+--   __Note__: If using any parser library, you will have to convert from the internal positioning system to a 'SourceRange'
 --             to be able to use this library.
 --
---   Markers put in the report can be one of (the colors specified are used only when pretty-printing):
+--   Markers put in the report can be one of:
 --
---   - A 'Error.Diagnose.Report.This' marker, which is the primary marker of the report.
+--   - A 'Error.Diagnose.Report.Primary' marker, which is the primary marker of the report.
 --     While it is allowed to have multiple of these inside one report, it is encouraged not to, because the position at the top of
---     the report will only be the one of the /first/ 'Error.Diagnose.Report.This' marker, and because the resulting report may be harder to understand.
+--     the report will only be the one of the /first/ 'Error.Diagnose.Report.Primary' marker, and because the resulting report may be harder to understand (depending on the layout and style chosen).
 --
---         This marker is output in red in an error report, and yellow in a warning report.
---
---   - A 'Error.Diagnose.Report.Where' marker contains additional information\/provides context to the error\/warning report.
+--   - A 'Error.Diagnose.Report.Secondary' marker contains additional information\/provides context to the error\/warning report.
 --     For example, it may underline where a given variable @x@ is bound to emphasize it.
 --
---         This marker is output in blue.
---
---   - A 'Error.Diagnose.Report.Maybe' marker may contain possible fixes (if the text is short, else hints are recommended for this use).
---
---         This marker is output in magenta.
---
 --   - A 'Error.Diagnose.Report.Blank' marker is useful only to output additional lines of code in the report.
---
---         This marker is not output and has no color.
+--     This marker should not be output.
 
 -- $create_diagnostic
 --
@@ -149,6 +171,7 @@ import Error.Diagnose.Style as Export
 --         >    1 │ let id<a>(x : a) : a := x + 1
 --         >      •                         ┬────
 --         >      •                         ╰╸ Required here
+--         >      │
 --         > ─────╯
 --
 --         > [error]: Error with one marker in bounds
@@ -157,6 +180,7 @@ import Error.Diagnose.Style as Export
 --         >    1 | let id<a>(x : a) : a := x + 1
 --         >      :                         ^----
 --         >      :                         `- Required here
+--         >      |
 --         > -----+
 --
 --   - A 'Bool' set to 'False' if you don't want colors in the end result.
@@ -165,6 +189,9 @@ import Error.Diagnose.Style as Export
 --
 --   - The 'Style' describing colors of the report.
 --     See the module "Error.Diagnose.Style" for how to define new styles.
+--
+--   - The 'Layout' chosen for the rendering process.
+--     The example above uses the ariadne-inspired layout available from the @diagnose-ariadne@ package.
 --
 --   - And finally the 'Diagnostic' to output.
 
@@ -175,32 +202,37 @@ import Error.Diagnose.Style as Export
 -- As a 'Prettyprinter.Doc', there is also the possibility of altering internal annotations (styles) much easier (although this is already possible when printing the diagnostic).
 --
 -- The arguments of the function mostly follow the ones from 'printDiagnostic'.
--- The style is not one, as it can be applied by simply applying the styling function to the resulting function (if wanted).
 
 -- $diagnostic_json
 --
 --   'Diagnostic's can be exported to a JSON record of the following type, using the 'diagnosticToJson' function:
 --
---   > { files:
---   >     { name: string
---   >     , content: string[]
---   >     }[]
---   > , reports:
---   >     { kind: 'error' | 'warning'
---   >     , code: string?
---   >     , message: string
---   >     , markers:
---   >         { kind: 'this' | 'where' | 'maybe'
---   >         , position:
---   >             { beginning: { line: int, column: int }
---   >             , end: { line: int, column: int }
---   >             , file: string
---   >             }
---   >         , message: string
---   >         }[]
---   >     , hints: ({ note: string } | { hint: string })[]
---   >     }[]
---   > }
+--   > Position :
+--   >   { "beginning": { line: int, column: int }
+--   >   , "end": { line: int, column: int }
+--   >   , "file": string
+--   >   }
+--
+--   > Marker :
+--   >     { "kind": "primary", "position": Position, "message": T? }
+--   >   | { "kind": "secondary", "position": Position, "message": T? }
+--   >   | { "kind": "blank", "position": Position }
+--   >   | { "kind": "add", "position": Position, "code": string }
+--   >   | { "kind": "remove", "position": Position }
+--
+--   > Note :
+--   >   { "kind": "note" | "hint", "message": T, "markers": Marker? }
+--
+--   > Diagnostic :
+--   >   { "files": [{ "name": string, "content": [string] }]
+--   >   , "reports":
+--   >     [{ "kind": "error" | "warning" | "critical"
+--   >      , "code": T?
+--   >      , "message": T
+--   >      , "markers": [Marker]
+--   >      , "notes": [Note]
+--   >      }]
+--   >   }
 --
 --   This is particularly useful in the context of a LSP server, where outputting or parsing a raw error yields strange results or is unnecessarily complicated.
 --
@@ -243,7 +275,7 @@ import Error.Diagnose.Style as Export
 --   >            --   Creates a new diagnostic with no default hints from the bundle returned by megaparsec
 --   >         diag' = addFile diag filename content
 --   >            --   Add the file used when parsing with the same filename given to 'MP.runParser'
---   >     in printDiagnostic stderr True True 4 diag'
+--   >     in printDiagnostic stderr True True 4 ariadneStyle ariadneLayout diag'
 --   >   Right res   -> print res
 --
 --   This example will return the following error message (assuming default instances for @'Error.Diagnose.Compat.Megaparsec.HasHints' 'Data.Void.Void' msg@):
@@ -284,7 +316,7 @@ import Error.Diagnose.Style as Export
 --   >            --   Creates a new diagnostic with no default hints from the bundle returned by megaparsec
 --   >         diag' = addFile diag filename content
 --   >            --   Add the file used when parsing with the same filename given to 'MP.runParser'
---   >     in printDiagnostic stderr True True 4 diag'
+--   >     in printDiagnostic stderr True True 4 ariadneStyle ariadneLayout diag'
 --   >   Right res  -> print res
 --
 --   This will output the following error on @stderr@:
@@ -306,3 +338,44 @@ import Error.Diagnose.Style as Export
 --       As such, you will need to create orphan instances for your parser's error type.
 --
 --       Note that the message type @msg@ can be left abstract if the implements of 'Error.Diagnose.Compat.Hints.hints' is @hints _ = mempty@.
+
+-- $layout_and_styles
+--
+-- The @diagnose@ library is very flexible, and does not include a default style to use for rendering errors.
+-- As such, multiple packages are available, defining new layout rules and styles.
+-- Here is a non-exhaustive list:
+--
+-- - @diagnose-ariadne@ takes inspiration from the [ariadne](https://github.com/zesterer/ariadne) Rust library.
+--   This was the original layout by default, but has been moved to its own package.
+--   All the errors earlier are rendered using this style.
+--
+-- - @diagnose-gcc@ outputs errors in a similar fashion as the GCC toolchain.
+--
+-- - @diagnose-typescript@ renders errors similarly to some TypeScript compilers.
+--
+-- - @diagnose-codespan-reporting@ is inspired by the [codespan-reporting](https://github.com/brendanzab/codespan) Rust crate.
+--
+-- However, if none of these layouts fit your needs, you can also simply create your own!
+--
+-- A 'Layout' is a function from a 'Bool', an 'Int' and a 'Diagnostic' to a 'Prettyprinter.Doc'.
+--
+-- - The 'Bool' argument indicates whether we want the output to have Unicode characters or not.
+--   You may fully ignore this argument and always output in either Unicode or ASCII.
+--
+-- - The 'Int' argument gives the amount of spaces that a TAB character must span when rendering.
+--   It is better not to discard it, in order not to confuse the end user (or yourself!).
+--
+-- - The 'Diagnostic' argument is the diagnostic to render.
+--
+-- Note that there are a few restrictions on the types of arguments:
+--
+-- - The @msg@ type in the 'Diagnostic' must be pretty-printable (i.e. there must be an instance of @Pretty msg@);
+--
+-- - The @ann@ type, which describes the annotations in the 'Prettyprinter.Doc', must be an instance of 'IsAnnotation'.
+--   'IsAnnotation' is a typeclass which defines that a specific annotation type can be used to produce colors.
+--   See its documentation for more information.
+--
+--     Together with the 'Prettyprinter.reAnnotate' function, this defines a 'Style'.
+--
+-- Also, just for layout writers, there are some utility functions defined in the module "Error.Diagnose.Utils"
+--   (for example to fetch lines of code with colors).

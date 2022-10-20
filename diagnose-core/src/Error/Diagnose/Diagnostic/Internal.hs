@@ -29,7 +29,7 @@ import qualified Data.DList as DL
 import Data.Default (Default, def)
 import Data.Foldable (toList)
 import qualified Data.HashMap.Lazy as HashMap
-import Error.Diagnose.Pretty (Doc, Pretty, hPutDoc, unAnnotate)
+import Error.Diagnose.Pretty (Doc, Pretty, hPutDoc, unAnnotate, AnsiStyle)
 import Error.Diagnose.Report (Report)
 import Error.Diagnose.Report.Internal (FileMap, errorToWarning, warningToError)
 import Error.Diagnose.Style (IsAnnotation, Style)
@@ -102,7 +102,7 @@ printDiagnostic ::
   (MonadIO m, Pretty msg, IsAnnotation ann) =>
   -- | The handle onto which to output the diagnostic.
   Handle ->
-  -- | Should we print with unicode characters?
+  -- | Should we print with Unicode characters?
   Bool ->
   -- | 'False' to disable colors.
   Bool ->
@@ -118,6 +118,28 @@ printDiagnostic ::
 printDiagnostic handle withUnicode withColors tabSize style layout diag =
   liftIO $ hPutDoc handle ((if withColors then style else unAnnotate) $ layout withUnicode tabSize diag)
 {-# INLINE printDiagnostic #-}
+
+-- | Pretty prints a 'Diagnostic' into a 'Doc'.
+--
+--   If colors are undesired, you can 'Prettyprinter.unAnnotate' the resulting 'Doc':
+--
+--   >>> unAnnotate (prettyDiagnostic True 4 myStyle myLayout myDiagnostic) :: Doc ann'
+prettyDiagnostic ::
+  (Pretty msg, IsAnnotation ann) =>
+  -- | Whether to use Unicode characters or not.
+  Bool ->
+  -- | The size, in amount of spaces, to render TAB characters with.
+  Int ->
+  -- | The style to use for colors.
+  Style ann ->
+  -- | The layout used to render the error.
+  Layout msg ann ->
+  -- | The diagnostic to render.
+  Diagnostic msg ->
+  Doc AnsiStyle
+prettyDiagnostic withUnicode tabSize style layout diag =
+  style $ layout withUnicode tabSize diag
+{-# INLINE prettyDiagnostic #-}
 
 -- | Inserts a new referenceable file within the diagnostic.
 addFile ::
@@ -145,30 +167,35 @@ addReport (Diagnostic reports files) report =
 {-# INLINE addReport #-}
 
 #ifdef USE_AESON
--- | Creates a JSON object from a diagnostic, containing those fields (only types are indicated):
+-- | Creates a JSON object from a diagnostic, containing the fields underneath (only types are indicated).
+--   @T@ stands for the @msg@ abstract type, and is put purely to symbolize where @msg@ is actually serialized.
 --
---   > { files:
---   >     { name: string
---   >     , content: string[]
---   >     }[]
---   > , reports:
---   >     { kind: 'error' | 'warning'
---   >     , code: T?
---   >     , message: T
---   >     , markers:
---   >         { kind: 'this' | 'where' | 'maybe'
---   >         , position:
---   >             { beginning: { line: int, column: int }
---   >             , end: { line: int, column: int }
---   >             , file: string
---   >             }
---   >         , message: T
---   >         }[]
---   >     , hints: ({ note: T } | { hint: T })[]
---   >     }[]
---   > }
+--   > Position :
+--   >   { "beginning": { line: int, column: int }
+--   >   , "end": { line: int, column: int }
+--   >   , "file": string
+--   >   }
 --
---   where @T@ is the type of the JSON representation for the @msg@ type variable.
+--   > Marker :
+--   >     { "kind": "primary", "position": Position, "message": T? }
+--   >   | { "kind": "secondary", "position": Position, "message": T? }
+--   >   | { "kind": "blank", "position": Position }
+--   >   | { "kind": "add", "position": Position, "code": string }
+--   >   | { "kind": "remove", "position": Position }
+--
+--   > Note :
+--   >   { "kind": "note" | "hint", "message": T, "markers": Marker? }
+--
+--   > Diagnostic :
+--   >   { "files": [{ "name": string, "content": [string] }]
+--   >   , "reports":
+--   >     [{ "kind": "error" | "warning" | "critical"
+--   >      , "code": T?
+--   >      , "message": T
+--   >      , "markers": [Marker]
+--   >      , "notes": [Note]
+--   >      }]
+--   >   }
 diagnosticToJson :: ToJSON msg => Diagnostic msg -> ByteString
 diagnosticToJson = encode
 #endif

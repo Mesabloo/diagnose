@@ -25,6 +25,7 @@ import Error.Diagnose.Diagnostic.Internal as Export
     errorsToWarnings,
     filesOf,
     hasReports,
+    prettyDiagnostic,
     printDiagnostic,
     reportsOf,
     warningsToErrors,
