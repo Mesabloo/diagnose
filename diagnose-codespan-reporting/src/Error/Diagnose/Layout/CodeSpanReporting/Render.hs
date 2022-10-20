@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds        #-}
+{-# LANGUAGE GADTs            #-}
 {-# LANGUAGE NamedFieldPuns   #-}
 {-# LANGUAGE PatternSynonyms  #-}
 {-# LANGUAGE RecordWildCards  #-}
@@ -16,21 +18,22 @@ import qualified Data.Text as T (length, split)
 import Control.Arrow ((&&&))
 import Data.Array.Unboxed (UArray)
 import Data.Bifunctor (bimap, first, second)
-import Data.Char (isSpace, ord)
+import Data.Char (GeneralCategory (Control), generalCategory, isSpace, ord)
 import Data.Char.WCWidth (wcwidth)
 import Data.Foldable (maximumBy)
 import Data.Function (on)
 import Data.List (dropWhileEnd, groupBy, intersperse, nub, sort, sortOn, uncons, unfoldr)
-import Data.Maybe (fromJust, isJust, mapMaybe)
+import Data.Maybe (fromJust, isJust, isNothing, mapMaybe)
 import Data.Ord (comparing)
 import Text.Printf (printf)
 
-import qualified Error.Diagnose as E (Note (..), Severity (..))
+import qualified Error.Diagnose as E (Marker (..), Note (..), Severity (..))
 
-import Error.Diagnose (NoteMarker (..), Position (..), Report (..), SimpleMarker (..), align, hsep)
+import Error.Diagnose (IsAnnotation (mkColor), MarkerKind (..), Report (..), SourceRange (..), align, hsep)
 import Error.Diagnose.Layout (FileMap)
 import Prettyprinter (Doc, Pretty (..), annotate, brackets, colon, column, emptyDoc, fill, hardline, space, (<+>))
 import Prettyprinter.Internal (Doc (..))
+import Prettyprinter.Render.Terminal (Color (..), bold, color, colorDull)
 
 unicodeWidth :: Int -> Int -> Char -> Int
 unicodeWidth tabSize col c@(wcwidth -> w)
@@ -68,6 +71,30 @@ data Annotation
   | SourceTint Severity MarkerStyle
   | MarkerTint Severity MarkerStyle
   deriving (Show, Eq)
+
+instance IsAnnotation Annotation where
+  mkColor = \case
+    Header Bug         -> bold <> color Red
+    Header Error       -> bold <> color Red
+    Header Warning     -> bold <> color Yellow
+    Header Note        -> bold <> color Green
+    Header Help        -> bold <> color Cyan
+    HeaderMessage      -> bold <> color White
+    SourceBorder       -> colorDull Cyan -- Blue
+    NoteBullet         -> colorDull Cyan -- Blue
+    LineNumber         -> colorDull Cyan -- Blue
+    SourceTint sev sty -> marker sev sty True
+    MarkerTint sev sty -> marker sev sty False
+    where marker Bug     SPrimary   _       = colorDull Red
+          marker Error   SPrimary   _       = colorDull Red
+          marker Warning SPrimary   _       = colorDull Yellow
+          marker Note    SPrimary   _       = colorDull Green
+          marker Help    SPrimary   _       = colorDull Cyan
+          marker _         SBlank     _     = mempty
+          marker _         SAdd       _     = color Green
+          marker _         SRemove    _     = color Red
+          marker _         SSecondary True  = colorDull White
+          marker _         SSecondary False = colorDull Cyan -- Blue
 
 data MarkerStyle
   = SAdd
@@ -159,7 +186,7 @@ data GenReport msg = GenReport
   { reportSeverity   :: Severity
   , reportErrorCode  :: Maybe msg
   , reportMessage    :: msg
-  , reportMarkers    :: [(Position, Marker msg)]
+  , reportMarkers    :: [(SourceRange, Marker msg)]
   , reportNotes      :: [(Severity, msg)]
   , reportSubReports :: [GenReport msg]
   }
@@ -170,27 +197,28 @@ reportToGenReport (Report sev reportErrorCode reportMessage markers notes) = Gen
           E.Warning  -> Warning
           E.Error    -> Error
           E.Critical -> Bug
-        reportMarkers = map (second simpleMarkerToMarker) markers
-        classifyNote (noteSev, msg, m)
-          | null m = Left (noteSev, msg)
-          | otherwise = Right (noteToGenReport noteSev msg m)
+        reportMarkers = map mainMarkerToMarker markers
+        classifyNote (noteSev, msg, mm)
+          | Just m <- mm = Right (noteToGenReport noteSev msg m)
+          | otherwise = Left (noteSev, msg)
         noteToTriple (E.Note msg ms) = (Note, msg, ms)
         noteToTriple (E.Hint msg ms) = (Help, msg, ms)
         (reportNotes, reportSubReports) = partitionEither (classifyNote . noteToTriple) notes
 
-simpleMarkerToMarker :: SimpleMarker msg -> Marker msg
-simpleMarkerToMarker (Primary msg)   = Marker SPrimary (Just msg) Nothing
-simpleMarkerToMarker (Secondary msg) = Marker SSecondary (Just msg) Nothing
-simpleMarkerToMarker Blank           = Marker SBlank Nothing Nothing
+mainMarkerToMarker :: E.Marker msg 'MainMarker -> (SourceRange, Marker msg)
+mainMarkerToMarker (E.Primary range msg)   = (range, Marker SPrimary msg Nothing)
+mainMarkerToMarker (E.Secondary range msg) = (range, Marker SSecondary msg Nothing)
+mainMarkerToMarker (E.Blank range)         = (range, Marker SBlank Nothing Nothing)
 
-noteToGenReport :: Severity -> msg -> [(Position, NoteMarker msg)] -> GenReport msg
-noteToGenReport reportSeverity reportMessage (map (second noteMarkerToMarker) -> reportMarkers)
+noteToGenReport :: Severity -> msg -> E.Marker msg 'NoteMarker -> GenReport msg
+noteToGenReport reportSeverity reportMessage (pure . noteMarkerToMarker -> reportMarkers)
   = GenReport{reportErrorCode = Nothing, reportNotes = [], reportSubReports = [], ..}
 
-noteMarkerToMarker :: NoteMarker msg -> Marker msg
-noteMarkerToMarker (AddCode text msg) = Marker SAdd (Just msg) (Just text)
-noteMarkerToMarker (RemoveCode msg)   = Marker SRemove (Just msg) Nothing
-noteMarkerToMarker (Annotate msg)     = Marker SSecondary (Just msg) Nothing
+noteMarkerToMarker :: E.Marker msg 'NoteMarker -> (SourceRange, Marker msg)
+noteMarkerToMarker (E.AddCode begin@(l, c) file len text)
+  = (Range{ file, begin, end = (l, c + len - 1) }, Marker SAdd Nothing (Just text))
+noteMarkerToMarker (E.RemoveCode range)   = (range, Marker SRemove Nothing Nothing)
+noteMarkerToMarker (E.Annotate range msg) = (range, Marker SSecondary msg Nothing)
 
 report :: Pretty msg => FileMap -> Chars -> Int -> Report msg -> Doc Annotation
 report fileMap chars tabSize = genReport fileMap chars tabSize . reportToGenReport
@@ -204,14 +232,14 @@ genReport fileMap chars@Chars{ cSourceBorderLeft } tabSize
   <> foldMap (genReport fileMap chars tabSize) subReports
   where groups = sortMarkers markers
         maxLnWidth = length $ show $ maximum $ 0 : concatMap go markers
-          where go (Position{ begin, end }, _) = [fst begin, snd end]
+          where go (Range{ begin, end }, _) = [fst begin, snd end]
         leftPadding = pad maxLnWidth ""
         trailingLeftBorder = leftPadding <+> annotate SourceBorder (pretty cSourceBorderLeft) <> hardline
         sortMarkers
           = map (file . fst . head &&& id)
           . groupBy ((==) `on` file . fst)
           . sortOn (posToTriple . fst)
-        posToTriple Position{ begin, end, file } = (file, begin, end)
+        posToTriple Range{ begin, end, file } = (file, begin, end)
         renderFile (fileName, thisMarkers)
           | Just fileLines <- fileMap H.!? fileName
           , let (singles, multis) = classifyAndGroupMarkers fileLines thisMarkers
@@ -223,7 +251,7 @@ genReport fileMap chars@Chars{ cSourceBorderLeft } tabSize
           then snippetStart chars maxLnWidth startPos <> foldMap go markedLines <> trailingLeftBorder
           else makeBug ("line " <> takeNAndOthers 2 missingLines <> " of file '" <> pretty fileName <> "' not available")
           | otherwise = makeBug ("content of file '" <> pretty fileName <> "' not available")
-          where allLines = nub $ sort $ concatMap (\(Position{..}, _) -> [fst begin, fst end]) thisMarkers
+          where allLines = nub $ sort $ concatMap (\(Range{..}, _) -> [fst begin, fst end]) thisMarkers
                 startPos = fst (head thisMarkers)
                 makeBug s = leftPadding <+> annotate (Header Bug) "bug" <> annotate HeaderMessage (colon <+> s) <> hardline
 
@@ -233,12 +261,12 @@ partitionEither p = foldr go ([], [])
         go (p -> Right c) ~(bs, cs) = (bs, c : cs)
 
 -- | 1. Classify single-line and multi-line markers
-classifyMarkers :: [(Position, Marker msg)] -> ([(Line, SingleMarker msg)], [MultiMarker msg])
+classifyMarkers :: [(SourceRange, Marker msg)] -> ([(Line, SingleMarker msg)], [MultiMarker msg])
 classifyMarkers = partitionEither \(pos, marker) ->
-  let Position{ begin = begin@(lnS, colS), end = end@(lnE, colE) } = pos
+  let Range{ begin = begin@(lnS, colS), end = end@(lnE, colE) } = pos
   in if lnS == lnE then Left (lnS, ((colS, colE), marker)) else Right ((begin, end), marker)
 
-classifyAndGroupMarkers :: A.Array Int String -> [(Position, Marker msg)] -> ([(Line, [SingleMarker msg])], [MultiGroup msg])
+classifyAndGroupMarkers :: A.Array Int String -> [(SourceRange, Marker msg)] -> ([(Line, [SingleMarker msg])], [MultiGroup msg])
 classifyAndGroupMarkers fileLines = bimap groupSingles (groupMultis fileLines) . classifyMarkers
 
 -- | 2. Group multi-line markers into disjoint groups
@@ -336,8 +364,8 @@ header sev code msg
   -- message: ': unexpected type in `+` application'
   <> annotate HeaderMessage (colon <+> align (pretty msg)) <> hardline
 
-snippetStart :: Chars -> Int -> Position -> Doc Annotation
-snippetStart Chars{ cSnippetStart } k Position{ file, begin = (ln, col) }
+snippetStart :: Chars -> Int -> SourceRange -> Doc Annotation
+snippetStart Chars{ cSnippetStart } k Range{ file, begin = (ln, col) }
   -- rendered as: '  ┌─ test:2:9'
   = pad k "" <+> annotate SourceBorder (pretty cSnippetStart)
   <+> pretty file <> colon <> pretty ln <> colon <> pretty col
@@ -370,16 +398,25 @@ renderInlineNote Chars{ cNoteBullet } maxLnWidth (noteSev, noteMsg)
   = pad maxLnWidth "" <+> annotate NoteBullet (pretty cNoteBullet)
   <+> pretty noteSev <> colon <+> align (pretty noteMsg) <> hardline
 
-data ExtColumn = ExtColumn
+newtype ExtInt = ExtInt Int deriving (Show, Eq)
+instance Ord ExtInt where
+  compare (ExtInt 0) (ExtInt _) = GT
+  compare (ExtInt _) (ExtInt 0) = LT
+  compare (ExtInt x) (ExtInt y) = compare x y
+
+data ExtColumn = MaybeExtColumn
   { realColumn :: {-# UNPACK #-} !Int
-  , extColumn  :: {-# UNPACK #-} !Int
+  , extColumn  :: {-# UNPACK #-} !ExtInt
   } deriving (Show, Eq, Ord)
 
 pattern RealColumn :: Int -> ExtColumn
-pattern RealColumn n = ExtColumn{ realColumn = n, extColumn = 0 }
+pattern RealColumn n = MaybeExtColumn{ realColumn = n, extColumn = ExtInt 0 }
+
+pattern ExtColumn :: Int -> Int -> ExtColumn
+pattern ExtColumn l c = MaybeExtColumn{ realColumn = l, extColumn = ExtInt c }
 
 nextColumn :: ExtColumn -> ExtColumn
-nextColumn ExtColumn{ realColumn } = ExtColumn{ realColumn = realColumn + 1, extColumn = 0 }
+nextColumn MaybeExtColumn{ realColumn } = MaybeExtColumn{ realColumn = realColumn + 1, extColumn = ExtInt 0 }
 
 mergeAscendingOn :: Ord k => (a -> k) -> [a] -> [a] -> [a]
 mergeAscendingOn key = go
@@ -417,7 +454,7 @@ sourceLine Chars{..} tabSize lnWidth maxMultiCount sev
   -- >    │   │ ^^^^^^  -------^^^^^^^^^-------^^^^^------- ^^^^^ trailing label message
   <> (if null singles then emptyDoc else
         tailLeader <+> renderedMarkers <> trailingMsgRendered <> hardline)
-  <> (if nDanglingMsgs == 0 then emptyDoc else
+  <> (if not anyDanglingMsg then emptyDoc else
   -- >    │   │ │              │
          allPointerLines <> hardline
   -- >    │   │ │              croissant is mentioned here
@@ -447,7 +484,8 @@ sourceLine Chars{..} tabSize lnWidth maxMultiCount sev
       $ zip (map RealColumn [1..])
       $ zipWith handleTab [0..] text
     insertions = concat (mapMaybe go singles)
-      where go ((l, _), m) = attachColumn l <$> markerInsertion m
+      where go ((l, _), m) = attachColumn l . map replaceNewline <$> markerInsertion m
+            replaceNewline c = if generalCategory c == Control then ' ' else c
             attachColumn l = zip (map (ExtColumn l) [1..]) . zipWith handleTab [l - 1..]
     -- attach colour for the source code text
     attachColour
@@ -508,15 +546,19 @@ sourceLine Chars{..} tabSize lnWidth maxMultiCount sev
       = filter ((/= SBlank) . markerStyle . snd)
       $ filterIndex ((/= fmap fst trailingMsg) . Just) singles
     nDanglingMsgs = length danglingMsgs
+    anyDanglingMsg = any (isJust . markerMessage . snd) danglingMsgs
     renderDanglingUntil k = foldl go emptyDoc (take k danglingMsgs)
-      where go cur ((colS, _), markerStyle -> st)
-              = fill (widthTable A.! colS) cur <> annotate (MarkerTint sev st) (pretty cPointerLeft)
+      where go cur ((colS, _), m@(markerStyle -> st))
+              | isNothing (markerMessage m) = emptyDoc
+              | otherwise = fill (widthTable A.! colS) cur
+                  <> annotate (MarkerTint sev st) (pretty cPointerLeft)
     allPointerLines = tailLeader <+> renderDanglingUntil nDanglingMsgs
     drawDanglingMsgs k
       | k < 0 = emptyDoc
+      | withoutMessage = drawDanglingMsgs (pred k)
       | otherwise = leader <> pMsg <> hardline <> drawDanglingMsgs (pred k)
       where ((colS, _), marker) = danglingMsgs !! k
-            ~(Just msg) = markerMessage marker
+            (withoutMessage, msg) = maybe (True, undefined) (False, ) (markerMessage marker)
             st = markerStyle marker
             pMsg = replaceLinesWith (hardline <> leader) (annotate (MarkerTint sev st)) (pretty msg)
             leader = tailLeader <+> fill (widthTable A.! colS) (renderDanglingUntil k)
@@ -533,6 +575,7 @@ sourceLine Chars{..} tabSize lnWidth maxMultiCount sev
             cont = hardline <> multiLeader False <> pretty (replicate (succ colE) ' ')
             outerSt = markerStyle outer
             annDoc = annotate (MarkerTint sev outerSt)
+            ann :: Pretty a => MarkerStyle -> a -> Doc Annotation
             ann m = annotate (MarkerTint sev m) . pretty
             (st, ed) = case markerStyle outer of
               SPrimary   -> (cMultiPrimaryCaretStart, cMultiPrimaryCaretEnd)
