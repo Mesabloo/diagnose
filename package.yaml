@@ -61,7 +61,7 @@ flags:
 when:
   - condition: flag(json)
     dependencies:
-    - aeson >= 1.5 && <2
+    - aeson >= 1.5 && <3
     - bytestring >= 0.9 && < 1
 
     cpp-options:
