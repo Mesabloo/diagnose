@@ -1,14 +1,25 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MonoLocalBinds #-}
 
+-- |
+-- Module      : Error.Diagnose.Layout.GCC.Style
+-- Description : Annotations and default color definitions for the Typescript layout.
+-- Copyright   : (c) Mesabloo and contributors, 2022-
+-- License     : BSD3
+-- Stability   : experimental
+-- Portability : Portable
+--
+-- This modules contains the definition for coloring annotations as well as a default color scheme for them.
 module Error.Diagnose.Layout.Typescript.Style where
 
 import Error.Diagnose.Pretty (Color (..), bgColor, bgColorDull, bold, color, colorDull)
 import Error.Diagnose.Report (Severity (..))
 import Error.Diagnose.Style (IsAnnotation (..), Style, reAnnotate)
 
+-- | An abstract representation of coloring information for the Typescript layout.
 data TypescriptAnnotation
-  = PrimaryTint Severity
+  = -- | TODO
+    PrimaryTint Severity
   | SecondaryTint
   | AdditionTint
   | RemovalTint
@@ -22,7 +33,7 @@ data TypescriptAnnotation
   | ErrorCode
   | Header TypescriptAnnotation
 
-instance {-# OVERLAPPABLE #-} IsAnnotation TypescriptAnnotation where
+instance IsAnnotation TypescriptAnnotation where
   mkColor = \case
     PrimaryTint Error -> color Red
     PrimaryTint Warning -> color Yellow

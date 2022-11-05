@@ -4,6 +4,13 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
+-- |
+-- Module      : Error.Diagnose.Layout.GCC
+-- Description : Definition for the rendering part of the GCC layout.
+-- Copyright   : (c) Mesabloo and contributors, 2022-
+-- License     : BSD3
+-- Stability   : experimental
+-- Portability : Portable
 module Error.Diagnose.Layout.GCC (gccLayout) where
 
 import Control.Monad (forM, forM_, unless, when)

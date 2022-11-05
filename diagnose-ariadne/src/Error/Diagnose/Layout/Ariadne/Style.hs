@@ -11,8 +11,6 @@
 -- Portability : Portable
 --
 -- This modules contains the definition for coloring annotations as well as a default color scheme for them.
--- If this default color scheme does not suit you well, please define your own instance of 'IsAnnotation' 'AriadneAnnotation'
--- and mark it as @{-# OVERLAPPING #-}@.
 module Error.Diagnose.Layout.Ariadne.Style where
 
 import Error.Diagnose.Pretty (Color (..), bold, color, colorDull)
@@ -51,8 +49,7 @@ data AriadneAnnotation
   | -- | The default color of code when there are no markers underneath.
     CodeTint
 
--- | Can be overlapped as needed.
-instance {-# OVERLAPPABLE #-} IsAnnotation AriadneAnnotation where
+instance IsAnnotation AriadneAnnotation where
   mkColor = \case
     PrimaryTint Error -> color Red
     PrimaryTint Warning -> color Yellow

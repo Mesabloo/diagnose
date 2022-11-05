@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
@@ -24,6 +25,7 @@ import Error.Diagnose.Layout.GCC (gccLayout)
 import Error.Diagnose.Layout.GCC.Style (gccStyle)
 import Error.Diagnose.Layout.Typescript (typescriptLayout)
 import Error.Diagnose.Layout.Typescript.Style (typescriptStyle)
+import Error.Diagnose.Pretty (Doc, Pretty (..), line)
 import System.IO (hPutStrLn)
 
 main :: IO ()

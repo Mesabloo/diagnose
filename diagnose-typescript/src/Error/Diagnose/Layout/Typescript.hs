@@ -3,6 +3,13 @@
 {-# LANGUAGE GADTs #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
+-- |
+-- Module      : Error.Diagnose.Layout.Typescript
+-- Description : Definition for the rendering part of the Typescript layout.
+-- Copyright   : (c) Mesabloo and contributors, 2022-
+-- License     : BSD3
+-- Stability   : experimental
+-- Portability : Portable
 module Error.Diagnose.Layout.Typescript (typescriptLayout) where
 
 import Control.Arrow ((&&&))
