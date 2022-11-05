@@ -8,6 +8,8 @@ cradle:
       component: "diagnose-gcc:lib"
     - path: "./diagnose-typescript/src"
       component: "diagnose-typescript:lib"
+    - path: "./diagnose-codespan-reporting/src"
+      component: "diagnose-codespan-reporting:lib"
     - path: "./test/rendering"
       component: "diagnose-tests:test:diagnose-rendering-tests"
     - path: "./test/megaparsec"

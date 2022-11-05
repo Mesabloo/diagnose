@@ -1,0 +1,38 @@
+                    ┌ outer gutter
+                    │ ┌ left border
+                    │ │ ┌ inner gutter
+                    │ │ │   ┌─────────────────────────── source ─────────────────────────────┐
+                    │ │ │   │                                                                │
+                 ┌────────────────────────────────────────────────────────────────────────────
+       header ── │ error[0001]: oh noes, a cupcake has occurred!
+snippet start ── │    ┌─ test:9:0
+snippet empty ── │    │
+ snippet line ── │  9 │   ╭ Cupcake ipsum dolor. Sit amet marshmallow topping cheesecake
+ snippet line ── │ 10 │   │ muffin. Halvah croissant candy canes bonbon candy. Apple pie jelly
+                 │    │ ╭─│─────────^
+snippet break ── │    · │ │
+ snippet line ── │ 33 │ │ │ Muffin danish chocolate soufflé pastry icing bonbon oat cake.
+ snippet line ── │ 34 │ │ │ Powder cake jujubes oat cake. Lemon drops tootsie roll marshmallow
+                 │    │ │ ╰─────────────────────────────^ blah blah
+snippet break ── │    · │
+ snippet line ── │ 38 │ │   Brownie lemon drops chocolate jelly-o candy canes. Danish marzipan
+ snippet line ── │ 39 │ │   jujubes soufflé carrot cake marshmallow tiramisu caramels candy canes.
+                 │    │ │           ^^^^^^^^^^^^^^^^^^^ -------------------- blah blah
+                 │    │ │           │
+                 │    │ │           blah blah
+                 │    │ │           note: this is a note
+ snippet line ── │ 40 │ │   Fruitcake jelly-o danish toffee. Tootsie roll pastry cheesecake
+ snippet line ── │ 41 │ │   soufflé marzipan. Chocolate bar oat cake jujubes lollipop pastry
+ snippet line ── │ 42 │ │   cupcake. Candy canes cupcake toffee gingerbread candy canes muffin
+                 │    │ │                                ^^^^^^^^^^^^^^^^^^ blah blah
+                 │    │ ╰──────────^ blah blah
+snippet break ── │    ·
+ snippet line ── │ 82 │     gingerbread toffee chupa chups chupa chups jelly-o cotton candy.
+                 │    │                 ^^^^^^                         ------- blah blah
+snippet empty ── │    │
+ snippet note ── │    = blah blah
+ snippet note ── │    = blah blah blah
+                 │      blah blah
+ snippet note ── │    = blah blah blah
+                 │      blah blah
+        empty ── │
