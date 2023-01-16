@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 -- |
 -- Module      : Error.Diagnose.Style
 -- Description : Custom style definitions
@@ -19,6 +20,7 @@ module Error.Diagnose.Style
   )
 where
 
+import GHC.Generics
 import Prettyprinter (Doc, reAnnotate)
 import Prettyprinter.Render.Terminal (AnsiStyle, Color (..), bold, color, colorDull)
 
@@ -70,7 +72,7 @@ data Annotation
       Annotation
   | -- | The color of the code when no marker is present.
     CodeStyle
-
+  deriving (Eq, Ord, Show, Generic)
 -- | A style is a function which can be applied using 'reAnnotate'.
 --
 --   It transforms a 'Doc'ument containing 'Annotation's into a 'Doc'ument containing
