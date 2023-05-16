@@ -124,7 +124,7 @@ data Marker msg
     Maybe msg
   | -- | An empty marker, whose sole purpose is to include a line of code in the report without markers under.
     Blank
-  deriving (Functor, Eq, Ord)
+  deriving (Eq, Ord, Functor, Foldable, Traversable)
 
 isBlank :: Marker msg -> Bool
 isBlank = \case
