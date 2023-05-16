@@ -15,9 +15,13 @@ module Error.Diagnose.Style
 
     -- * Default style specification
     defaultStyle,
+
+    -- * Re-exports
+    reAnnotate,
   )
 where
 
+import Prettyprinter (Doc, reAnnotate)
 import Prettyprinter.Render.Terminal (AnsiStyle, Color (..), bold, color, colorDull)
 
 -- $defining_new_styles
