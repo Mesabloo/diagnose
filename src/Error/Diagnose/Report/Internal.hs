@@ -125,7 +125,7 @@ data Marker msg
     Maybe msg
   | -- | An empty marker, whose sole purpose is to include a line of code in the report without markers under.
     Blank
-  deriving (Functor, Foldable, Traversable)
+  deriving (Functor)
 
 instance Eq (Marker msg) where
   This _ == This _ = True
