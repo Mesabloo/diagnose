@@ -50,7 +50,7 @@ import Data.String (IsString (fromString))
 import qualified Data.Text as Text
 import Error.Diagnose.Position
 import Error.Diagnose.Style (Annotation (..))
-import Prettyprinter (Doc, Pretty (..), align, annotate, colon, hardline, lbracket, rbracket, space, width, (<+>), reAnnotate)
+import Prettyprinter (Doc, Pretty (..), align, annotate, colon, hardline, lbracket, rbracket, space, width, (<+>), reAnnotate, SimpleDocStream (..), layoutCompact)
 import Prettyprinter.Internal (Doc (..), textSpaces)
 import Data.Bool (bool)
 
@@ -493,7 +493,7 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
       let colorOfFirstMultilineMarker = markerColor isError . snd <$> List.safeHead multiline
           -- take the color of the last multiline marker in case we need to add additional bars
 
-          prefix = hardline <+> dotPrefix leftLen withUnicode <> space
+          prefix = space <> dotPrefix leftLen withUnicode <> space
 
           prefixWithBar color = prefix <> maybe id annotate color (unicode "| " "│ " withUnicode)
 
@@ -504,12 +504,12 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
                   then unicode "`- " "╰╸ " withUnicode
                   else unicode "|- " "├╸ " withUnicode
               )
-                <> replaceLinesWith (if isLast then prefix <> "   " else prefixWithBar (Just $ markerColor isError marker) <> space) (annotated $ markerMessage marker)
+                <> replaceLinesWith (if isLast then prefix <> "   " else prefixWithBar (Just $ markerColor isError marker) <> space) 0 (annotated $ markerMessage marker)
 
           showMultilineMarkerMessages [] = []
           showMultilineMarkerMessages [m] = [showMultilineMarkerMessage m True]
           showMultilineMarkerMessages (m : ms) = showMultilineMarkerMessage m False : showMultilineMarkerMessages ms
-       in prefixWithBar colorOfFirstMultilineMarker <> prefix <> fold (List.intersperse prefix $ showMultilineMarkerMessages multiline)
+       in hardline <> prefixWithBar colorOfFirstMultilineMarker <> hardline <> prefix <> fold (List.intersperse (hardline <> prefix) $ showMultilineMarkerMessages multiline)
 
 -- |
 getLine_ ::
@@ -619,7 +619,7 @@ showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUn
                     Nothing -> 0
                     Just col -> widthsBetween bc col
 
-                  currentPipe = unicode (bool "`" "|" hasSuccessor) (bool "╰" "├" hasSuccessor) withUnicode 
+                  currentPipe = unicode (bool "`" "|" hasSuccessor) (bool "╰" "├" hasSuccessor) withUnicode
 
                   lineChar = unicode '-' '─' withUnicode
                   pointChar = unicode "-" "╸" withUnicode
@@ -633,31 +633,42 @@ showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUn
 
                   lineStart pipesBeforeRendered
                     <> annotate (markerColor isError msg) (currentPipe <> pretty (replicate lineLen lineChar) <> pointChar)
-                    <+> annotate (markerColor isError msg) (replaceLinesWith (hardline <+> lineStart pipesBeforeMessageRendered <+> if List.null pipesBeforeMessageStart then "  " else " ") $ annotated $ markerMessage msg)
+                    <+> annotate (markerColor isError msg) (replaceLinesWith (space <> lineStart pipesBeforeMessageRendered <+> if List.null pipesBeforeMessageStart then "  " else " ") 0 $ annotated $ markerMessage msg)
          in hardline <+> prefix <> showMessages specialPrefix pipes lineLen
 
 -- WARN: uses the internal of the library
 --
 --       DO NOT use a wildcard here, in case the internal API exposes one more constructor
-
--- |
-replaceLinesWith :: Doc ann -> Doc ann -> Doc ann
-replaceLinesWith repl Line = repl
-replaceLinesWith _ Fail = Fail
-replaceLinesWith _ Empty = Empty
-replaceLinesWith _ (Char c) = Char c
-replaceLinesWith repl (Text _ s) =
-  let lines = Text.split (== '\n') s <&> \txt -> Text (Text.length txt) txt
-   in mconcat (List.intersperse repl lines)
-replaceLinesWith repl (FlatAlt f d) = FlatAlt (replaceLinesWith repl f) (replaceLinesWith repl d)
-replaceLinesWith repl (Cat c d) = Cat (replaceLinesWith repl c) (replaceLinesWith repl d)
--- We need to push the nesting past our line prefix
-replaceLinesWith repl (Nest n d) = replaceLinesWith (repl <> pretty (textSpaces n)) d
-replaceLinesWith repl (Union c d) = Union (replaceLinesWith repl c) (replaceLinesWith repl d)
-replaceLinesWith repl (Column f) = Column (replaceLinesWith repl . f)
-replaceLinesWith repl (Nesting f) = Nesting (replaceLinesWith repl . f)
-replaceLinesWith repl (Annotated ann doc) = Annotated ann (replaceLinesWith repl doc)
-replaceLinesWith repl (WithPageWidth f) = WithPageWidth (replaceLinesWith repl . f)
+replaceLinesWith :: Doc ann -> Int -> Doc ann -> Doc ann
+replaceLinesWith repl = go
+ where
+  replWidth = sdsWidth . layoutCompact $ repl
+  sdsWidth = \case
+    SFail -> 0
+    SEmpty -> 0
+    SChar _ sds -> 1 + sdsWidth sds
+    SText l _ sds -> l + sdsWidth sds
+    SLine _ _ -> error "replaceLinesWith was given a prefix with a line break"
+    SAnnPush _ sds -> sdsWidth sds
+    SAnnPop sds -> sdsWidth sds
+  replWithNesting n = hardline <> repl <> pretty (textSpaces n)
+  go n = \case
+    Line -> replWithNesting n
+    Fail -> Fail
+    Empty -> Empty
+    Char c -> Char c
+    Text l txt -> Text l txt
+    FlatAlt f d -> FlatAlt (go n f) (go n d)
+    Cat c d -> Cat (go n c) (go n d)
+    Nest n' d -> go (n + n') d
+    Union c d -> Union (go n c) (go n d)
+    Column f -> Column (go n . f)
+    -- In this case we add both our fake nesting level (from the 'Nest'
+    -- constructors we've eliminated) and the nesting level from the line
+    -- prefixes
+    Nesting f -> Nesting (go n . f . (+ replWidth) . (+ n))
+    Annotated ann doc -> Annotated ann (go n doc)
+    WithPageWidth f -> WithPageWidth (go n . f)
 
 -- | Extracts the color of a marker as a 'Doc' coloring function.
 markerColor ::
@@ -690,8 +701,8 @@ prettyAllHints (h : hs) leftLen withUnicode =
         A hint is composed of:
         (1)         : Hint: <hint message>
   -}
-  let prefix = hardline <+> pipePrefix leftLen withUnicode
-   in prefix <+> annotate HintColor (notePrefix h <+> replaceLinesWith (prefix <+> "      ") (annotated $ noteMessage h))
+  let prefix = space <> pipePrefix leftLen withUnicode
+   in hardline <> prefix <+> annotate HintColor (notePrefix h <+> replaceLinesWith prefix 7 (annotated $ noteMessage h))
         <> prettyAllHints hs leftLen withUnicode
   where
     notePrefix (Note _) = "Note:"

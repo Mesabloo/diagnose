@@ -25,7 +25,8 @@ import Error.Diagnose
     TabSize (..),
   )
 import System.IO (hPutStrLn)
-import Prettyprinter (Doc, annotate, pretty, hsep, indent, vsep, nest)
+import Prettyprinter (Doc, annotate, pretty, hsep, indent, vsep, nest, (<+>), align, list)
+import Prettyprinter.Util (reflow)
 import Prettyprinter.Render.Terminal (AnsiStyle, Color (..), color, bold, italicized, underlined)
 import Data.Traversable (mapAccumL)
 import Data.Functor.Compose (Compose(..))
@@ -162,7 +163,7 @@ nestingReport =
     (nest 4 $ vsep ["Nest...", "foo", "bar", "baz"])
     [ (Position (1, 15) (1, 16) "test.zc", Maybe a)
     ]
-    [Note b]
+    [Note b, Hint c]
  where
   a =
     nest 3 $
@@ -172,12 +173,29 @@ nestingReport =
         , "'My favourite day,' said Pooh."
         ]
   b =
-    foldr1 (\p q -> nest 2 (vsep [p, q]))
-        [ "It's a very funny thought that, if Bears were Bees,"
-        , "They'd build their nests at the bottom of trees."
-        , "And that being so (if the Bees were Bears),"
-        , "We shouldn't have to climb up all these stairs."
-        ]
+    foldr1
+      (\p q -> nest 2 (vsep [p, q]))
+      [ "It's a very funny thought that, if Bears were Bees,"
+      , "They'd build their nests at the bottom of trees."
+      , "And that being so (if the Bees were Bears),"
+      , "We shouldn't have to climb up all these stairs."
+      ]
+  c =
+    "The elements:"
+      <+> align
+        ( list
+            [ "antimony"
+            , "arsenic"
+            , "aluminum"
+            , "selenium"
+            , "hydrogen"
+            , "oxygen"
+            , "nitrogen"
+            , "rhenium"
+            , align $ reflow "And there may be many others, but they haven't been discovered"
+            ]
+        )
+
 
 errorNoMarkersNoHints :: Report String
 errorNoMarkersNoHints =
