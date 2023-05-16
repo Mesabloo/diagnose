@@ -16,7 +16,6 @@ import Error.Diagnose.Compat.Megaparsec
 import Instances ()
 import qualified Repro6
 import qualified Text.Megaparsec as MP
-import qualified Text.Megaparsec.Char as MP
 import qualified Text.Megaparsec.Char.Lexer as MP
 
 main :: IO ()

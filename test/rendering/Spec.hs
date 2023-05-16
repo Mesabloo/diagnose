@@ -17,6 +17,7 @@ import Error.Diagnose
     defaultStyle,
     printDiagnostic,
     stdout,
+    diagnosticToJson,
     WithUnicode (..),
     TabSize (..),
   )
