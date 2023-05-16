@@ -29,10 +29,10 @@ main = do
       res2 = first (errorDiagnosticFromBundle Nothing "Parse error on input" Nothing) $ MP.runParser @Void (MP.some MP.decimal <* MP.eof) filename content2
 
   case res1 of
-    Left diag -> printDiagnostic stdout True True 4 defaultStyle (addFile diag filename (Text.unpack content1) :: Diagnostic String)
+    Left diag -> printDiagnostic stdout True 4 defaultStyle (addFile diag filename (Text.unpack content1) :: Diagnostic String)
     Right res -> print res
   case res2 of
-    Left diag -> printDiagnostic stdout True True 4 defaultStyle (addFile diag filename (Text.unpack content2) :: Diagnostic String)
+    Left diag -> printDiagnostic stdout True 4 defaultStyle (addFile diag filename (Text.unpack content2) :: Diagnostic String)
     Right res -> print res
 
   putStrLn "---------------------------------------------------"

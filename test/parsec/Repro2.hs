@@ -29,8 +29,8 @@ parser2 = op' "\\" *> letter
 
 main :: IO ()
 main = do
-  either (printDiagnostic stderr True True 4 defaultStyle) print $ diagParse parser1 "issues/2.txt" "\\1"
-  either (printDiagnostic stderr True True 4 defaultStyle) print $ diagParse parser2 "issues/2.txt" "\\1"
+  either (printDiagnostic stderr True 4 defaultStyle) print $ diagParse parser1 "issues/2.txt" "\\1"
+  either (printDiagnostic stderr True 4 defaultStyle) print $ diagParse parser2 "issues/2.txt" "\\1"
 
 -- smaller example
 op' :: String -> Parser String
