@@ -53,7 +53,7 @@ import qualified Data.Text as Text
 import Error.Diagnose.Position
 import Error.Diagnose.Style (Annotation (..))
 import Prettyprinter (Doc, Pretty (..), align, annotate, colon, hardline, lbracket, rbracket, space, width, (<+>), reAnnotate)
-import Prettyprinter.Internal (Doc (..))
+import Prettyprinter.Internal (Doc (..), textSpaces)
 import Data.Bool (bool)
 
 type FileMap = HashMap FilePath (Array Int String)
@@ -653,7 +653,8 @@ replaceLinesWith repl (Text _ s) =
    in mconcat (List.intersperse repl lines)
 replaceLinesWith repl (FlatAlt f d) = FlatAlt (replaceLinesWith repl f) (replaceLinesWith repl d)
 replaceLinesWith repl (Cat c d) = Cat (replaceLinesWith repl c) (replaceLinesWith repl d)
-replaceLinesWith repl (Nest n d) = Nest n (replaceLinesWith repl d)
+-- We need to push the nesting past our line prefix
+replaceLinesWith repl (Nest n d) = replaceLinesWith (repl <> pretty (textSpaces n)) d
 replaceLinesWith repl (Union c d) = Union (replaceLinesWith repl c) (replaceLinesWith repl d)
 replaceLinesWith repl (Column f) = Column (replaceLinesWith repl . f)
 replaceLinesWith repl (Nesting f) = Nesting (replaceLinesWith repl . f)

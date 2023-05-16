@@ -5,12 +5,13 @@
 
 #ifdef USE_AESON
 import qualified Data.ByteString.Lazy as BS
+import Error.Diagnose(diagnosticToJson)
 #endif
 import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
 import Error.Diagnose
   ( Marker (..),
-    Note (Hint),
+    Note (..),
     Position (..),
     Report(..),
     addFile,
@@ -20,12 +21,11 @@ import Error.Diagnose
     printDiagnostic,
     printDiagnostic',
     stdout,
-    diagnosticToJson,
     WithUnicode (..),
     TabSize (..),
   )
 import System.IO (hPutStrLn)
-import Prettyprinter (Doc, annotate, pretty, hsep, indent, vsep)
+import Prettyprinter (Doc, annotate, pretty, hsep, indent, vsep, nest)
 import Prettyprinter.Render.Terminal (AnsiStyle, Color (..), color, bold, italicized, underlined)
 import Data.Traversable (mapAccumL)
 import Data.Functor.Compose (Compose(..))
@@ -85,7 +85,8 @@ main = do
         ]
       customAnnReports =
         [ colorfulReport,
-          indentedReport
+          indentedReport,
+          nestingReport
         ]
 
   let diag = HashMap.foldlWithKey' addFile (foldl addReport def reports) files
@@ -125,11 +126,10 @@ indentedReport =
   Err
     Nothing
     ("Indent..." <> indent 3 (vsep ["foo", "bar", "baz"]))
-    [(Position (1, 15) (1, 16) "test.zc", Maybe a)
-    ,(Position (1, 11) (1, 12) "test.zc", This b)
-    ,(Position (1, 5) (1, 10) "test.zc", Where c)
+    [ (Position (1, 15) (1, 16) "test.zc", Maybe a)
+    , (Position (1, 11) (1, 12) "test.zc", This b)
     ]
-    []
+    [Note c]
  where
   a =
     vsep
@@ -145,7 +145,8 @@ indentedReport =
       , "A man in hue, all “hues” in his controlling,"
       , "Which steals men’s eyes and women’s souls amazeth."
       ]
-  c = vsep
+  c =
+    vsep
       [ "And for a woman wert thou first created;"
       , "Till Nature, as she wrought thee, fell a-doting,"
       , "And by addition me of thee defeated,"
@@ -153,6 +154,30 @@ indentedReport =
       , indent 4 "But since she prick’d thee out for women’s pleasure,"
       , indent 4 "Mine be thy love and thy love’s use their treasure."
       ]
+
+nestingReport :: Report (Doc AnsiStyle)
+nestingReport =
+  Err
+    Nothing
+    (nest 4 $ vsep ["Nest...", "foo", "bar", "baz"])
+    [ (Position (1, 15) (1, 16) "test.zc", Maybe a)
+    ]
+    [Note b]
+ where
+  a =
+    nest 3 $
+      vsep
+        [ "'What day is it?' asked Pooh."
+        , "'It's today,' squeaked Piglet."
+        , "'My favourite day,' said Pooh."
+        ]
+  b =
+    foldr1 (\p q -> nest 2 (vsep [p, q]))
+        [ "It's a very funny thought that, if Bears were Bees,"
+        , "They'd build their nests at the bottom of trees."
+        , "And that being so (if the Bees were Bears),"
+        , "We shouldn't have to climb up all these stairs."
+        ]
 
 errorNoMarkersNoHints :: Report String
 errorNoMarkersNoHints =
