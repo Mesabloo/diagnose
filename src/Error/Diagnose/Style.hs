@@ -13,15 +13,12 @@ module Error.Diagnose.Style
     Style,
     -- $defining_new_styles
 
-    -- * Default style specification
+    -- * Styles
     defaultStyle,
-
-    -- * Re-exports
-    reAnnotate,
+    unadornedStyle,
   )
 where
 
-import Prettyprinter (Doc, reAnnotate)
 import Prettyprinter.Render.Terminal (AnsiStyle, Color (..), bold, color, colorDull)
 
 -- $defining_new_styles
@@ -83,6 +80,10 @@ data Annotation a
 type Style a = Annotation a -> AnsiStyle
 
 -------------------------------------------
+
+-- | A style which disregards all annotations
+unadornedStyle :: Style a
+unadornedStyle = const mempty
 
 -- | The default style for diagnostics, where:
 --

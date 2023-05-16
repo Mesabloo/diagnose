@@ -25,7 +25,9 @@ import Error.Diagnose.Diagnostic.Internal as Export
     hasReports,
     reportsOf,
     prettyDiagnostic,
+    prettyDiagnostic',
     printDiagnostic,
+    printDiagnostic',
     warningsToErrors,
   )
 import System.IO as Export (stderr, stdout)
