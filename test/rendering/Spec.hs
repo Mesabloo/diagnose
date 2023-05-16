@@ -17,6 +17,8 @@ import Error.Diagnose
     defaultStyle,
     printDiagnostic,
     stdout,
+    WithUnicode (..),
+    TabSize (..),
   )
 import System.IO (hPutStrLn)
 
@@ -77,9 +79,9 @@ main = do
   let diag = HashMap.foldlWithKey' addFile (foldl addReport def reports) files
 
   hPutStrLn stdout "\n\nWith unicode: ─────────────────────────\n"
-  printDiagnostic stdout True 4 defaultStyle diag
+  printDiagnostic stdout WithUnicode (TabSize 4) defaultStyle diag
   hPutStrLn stdout "\n\nWithout unicode: ----------------------\n"
-  printDiagnostic stdout False 4 defaultStyle diag
+  printDiagnostic stdout WithoutUnicode (TabSize 4) defaultStyle diag
 #ifdef USE_AESON
   hPutStrLn stdout "\n\nAs JSON: ------------------------------\n"
   BS.hPutStr stdout (diagnosticToJson diag)

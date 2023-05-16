@@ -16,7 +16,7 @@
 --            It is also highly undocumented.
 --
 --            Please limit yourself to the "Error.Diagnose.Diagnostic" module, which exports some of the useful functions defined here.
-module Error.Diagnose.Diagnostic.Internal (module Error.Diagnose.Diagnostic.Internal, def) where
+module Error.Diagnose.Diagnostic.Internal (module Error.Diagnose.Diagnostic.Internal, def, WithUnicode(..), TabSize(..)) where
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
 #ifdef USE_AESON
@@ -32,7 +32,7 @@ import Data.Foldable (fold, toList)
 import qualified Data.HashMap.Lazy as HashMap
 import Data.List (intersperse)
 import Error.Diagnose.Report (Report)
-import Error.Diagnose.Report.Internal (FileMap, errorToWarning, prettyReport, warningToError)
+import Error.Diagnose.Report.Internal (FileMap, errorToWarning, prettyReport, warningToError, WithUnicode(..), TabSize(..))
 import Error.Diagnose.Style (Annotation, Style)
 import Prettyprinter (Doc, Pretty, hardline, pretty, defaultLayoutOptions, reAnnotateS, layoutPretty)
 import Prettyprinter.Render.Terminal (renderIO)
@@ -102,9 +102,9 @@ errorsToWarnings (Diagnostic reports files) = Diagnostic (errorToWarning <$> rep
 prettyDiagnostic ::
   Pretty msg =>
   -- | Should we use unicode when printing paths?
-  Bool ->
+  WithUnicode ->
   -- | The number of spaces each TAB character will span.
-  Int ->
+  TabSize ->
   -- | The diagnostic to print.
   Diagnostic msg ->
   Doc (Annotation ann)
@@ -117,9 +117,9 @@ prettyDiagnostic withUnicode tabSize =
 -- annotations are retained in 'OtherStyle'
 prettyDiagnostic' ::
   -- | Should we use unicode when printing paths?
-  Bool ->
+  WithUnicode ->
   -- | The number of spaces each TAB character will span.
-  Int ->
+  TabSize ->
   -- | The diagnostic to print.
   Diagnostic (Doc ann) ->
   Doc (Annotation ann)
@@ -132,9 +132,9 @@ printDiagnostic ::
   -- | The handle onto which to output the diagnostic.
   Handle ->
   -- | Should we print with unicode characters?
-  Bool ->
+  WithUnicode ->
   -- | The number of spaces each TAB character will span.
-  Int ->
+  TabSize ->
   -- | The style in which to output the diagnostic.
   Style ann ->
   -- | The diagnostic to output.
@@ -151,9 +151,9 @@ printDiagnostic' ::
   -- | The handle onto which to output the diagnostic.
   Handle ->
   -- | Should we print with unicode characters?
-  Bool ->
+  WithUnicode ->
   -- | The number of spaces each TAB character will span.
-  Int ->
+  TabSize ->
   -- | The style in which to output the diagnostic.
   Style ann ->
   -- | The diagnostic to output.

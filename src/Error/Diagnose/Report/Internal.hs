@@ -26,6 +26,8 @@
 module Error.Diagnose.Report.Internal
   ( module Error.Diagnose.Report.Internal
   , Report(.., Warn, Err)
+  , WithUnicode(..)
+  , TabSize(..)
   ) where
 
 #ifdef USE_AESON
@@ -52,6 +54,7 @@ import Error.Diagnose.Position
 import Error.Diagnose.Style (Annotation (..))
 import Prettyprinter (Doc, Pretty (..), align, annotate, colon, hardline, lbracket, rbracket, space, width, (<+>), reAnnotate)
 import Prettyprinter.Internal (Doc (..))
+import Data.Bool (bool)
 
 type FileMap = HashMap FilePath (Array Int String)
 
@@ -193,14 +196,18 @@ errorToWarning :: Report msg -> Report msg
 errorToWarning (Report True code msg markers notes) = Report False code msg markers notes
 errorToWarning r@(Report False _ _ _ _) = r
 
+data WithUnicode = WithoutUnicode | WithUnicode
+
+newtype TabSize = TabSize Int
+
 -- | Pretty prints a report to a 'Doc' handling colors.
 prettyReport ::
   -- | The content of the file the reports are for
   FileMap ->
   -- | Should we print paths in unicode?
-  Bool ->
+  WithUnicode ->
   -- | The number of spaces each TAB character will span
-  Int ->
+  TabSize ->
   -- | The whole report to output
   Report (Doc ann) ->
   Doc (Annotation ann)
@@ -251,7 +258,7 @@ prettyReport fileContent withUnicode tabSize (Report isError code message marker
         <> {- (6) -} ( if null markers && null hints
                          then mempty
                          else
-                           annotate RuleColor (pad (maxLineNumberLength + 2) (if withUnicode then '─' else '-') mempty <> if withUnicode then "╯" else "+")
+                           annotate RuleColor (pad (maxLineNumberLength + 2) (unicode '-' '─' withUnicode) mempty <> unicode "+" "╯" withUnicode)
                              <> hardline
                      )
 
@@ -273,9 +280,11 @@ dotPrefix ::
   -- | The length of the left space before the bullet.
   Int ->
   -- | Whether to print with unicode characters or not.
-  Bool ->
+  WithUnicode ->
   Doc (Annotation ann)
-dotPrefix leftLen withUnicode = pad leftLen ' ' mempty <+> annotate RuleColor (if withUnicode then "•" else ":")
+dotPrefix leftLen withUnicode =
+  pad leftLen ' ' mempty
+    <+> annotate RuleColor (unicode ":" "•" withUnicode)
 {-# INLINE dotPrefix #-}
 
 -- | Creates a "pipe"-prefix for a report line where there is no code.
@@ -288,9 +297,9 @@ pipePrefix ::
   -- | The length of the left space before the pipe.
   Int ->
   -- | Whether to print with unicode characters or not.
-  Bool ->
+  WithUnicode ->
   Doc (Annotation ann)
-pipePrefix leftLen withUnicode = pad leftLen ' ' mempty <+> annotate RuleColor (if withUnicode then "│" else "|")
+pipePrefix leftLen withUnicode = pad leftLen ' ' mempty <+> annotate RuleColor (unicode "|" "│" withUnicode)
 {-# INLINE pipePrefix #-}
 
 -- | Creates a line-prefix for a report line containing source code
@@ -307,11 +316,11 @@ linePrefix ::
   -- | The line number to show.
   Int ->
   -- | Whether to use unicode characters or not.
-  Bool ->
+  WithUnicode ->
   Doc (Annotation ann)
 linePrefix leftLen lineNo withUnicode =
   let lineNoLen = length (show lineNo)
-   in annotate RuleColor $ mempty <+> pad (leftLen - lineNoLen) ' ' mempty <> pretty lineNo <+> if withUnicode then "│" else "|"
+   in annotate RuleColor $ mempty <+> pad (leftLen - lineNoLen) ' ' mempty <> pretty lineNo <+> unicode "|" "│" withUnicode
 {-# INLINE linePrefix #-}
 
 -- | Creates an ellipsis-prefix, when some line numbers are not consecutive.
@@ -322,9 +331,9 @@ linePrefix leftLen lineNo withUnicode =
 --   [without unicode] "@␣␣␣␣...@"
 ellipsisPrefix ::
   Int ->
-  Bool ->
+  WithUnicode ->
   Doc (Annotation ann)
-ellipsisPrefix leftLen withUnicode = pad leftLen ' ' mempty <> annotate RuleColor (if withUnicode then space <> "⋮" else "...")
+ellipsisPrefix leftLen withUnicode = pad leftLen ' ' mempty <> annotate RuleColor (unicode "..." (space <> "⋮") withUnicode)
 
 groupMarkersPerFile ::
   [(Position, Marker msg)] ->
@@ -353,11 +362,11 @@ prettySubReport ::
   -- | The content of files in the diagnostics
   FileMap ->
   -- | Is the output done with Unicode characters?
-  Bool ->
+  WithUnicode ->
   -- | Is the current report an error report?
   Bool ->
   -- | The number of spaces each TAB character will span
-  Int ->
+  TabSize ->
   -- | The size of the biggest line number
   Int ->
   -- | Is this sub-report the first one in the list?
@@ -380,16 +389,16 @@ prettySubReport fileContent withUnicode isError tabSize maxLineNumberLength isFi
         ( if isFirst
             then
               space <> pad maxLineNumberLength ' ' mempty
-                <+> annotate RuleColor (if withUnicode then "╭──▶" else "+-->")
+                <+> annotate RuleColor (unicode "+-->" "╭──▶" withUnicode)
             else
               space <> dotPrefix maxLineNumberLength withUnicode <> hardline
-                <> annotate RuleColor (pad (maxLineNumberLength + 2) (if withUnicode then '─' else '-') mempty)
-                <> annotate RuleColor (if withUnicode then "┼──▶" else "+-->")
+                <> annotate RuleColor (pad (maxLineNumberLength + 2) (unicode '-' '─' withUnicode) mempty)
+                <> annotate RuleColor (unicode "+-->" "┼──▶" withUnicode)
         )
           <+> annotate FileColor reportFile
    in {- (2) -} hardline <> fileMarker
         <> hardline
-          <+> {- (3) -} pipePrefix maxLineNumberLength withUnicode
+          <+> {- (3) -}  {- (3) -} pipePrefix maxLineNumberLength withUnicode
         <> {- (4) -} prettyAllLines fileContent withUnicode isError tabSize maxLineNumberLength sortedMarkersPerLine multilineMarkers allLineNumbers
 
 isThisMarker :: Marker msg -> Bool
@@ -408,10 +417,10 @@ splitMarkersPerLine (m@(Position {..}, _) : ms) =
 -- |
 prettyAllLines ::
   FileMap ->
-  Bool ->
+  WithUnicode ->
   Bool ->
   -- | The number of spaces each TAB character will span
-  Int ->
+  TabSize ->
   Int ->
   [(Int, [(Position, Marker (Doc ann))])] ->
   [(Position, Marker (Doc ann))] ->
@@ -458,19 +467,14 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
               if not $ null multiline
                 then
                   if not $ null allMultilineMarkersSpanningLine
-                    then colorOfFirstMultilineMarker if withUnicode then "│  " else "|  "
+                    then colorOfFirstMultilineMarker (unicode "|  " "│  " withUnicode)
                     else "   "
                 else mempty
             (p@(Position _ (el, _) _), marker) : _ ->
               let hasPredecessor = el == line || maybe False ((/=) p . fst . fst) (List.safeUncons multiline)
                in colorOfFirstMultilineMarker
-                    ( if
-                          | hasPredecessor && withUnicode -> "├"
-                          | hasPredecessor -> "|"
-                          | withUnicode -> "╭"
-                          | otherwise -> "+"
-                    )
-                    <> annotate (markerColor isError marker) (if withUnicode then "┤" else ">")
+                    (unicode (bool "+" "|" hasPredecessor ) (bool "╭" "├" hasPredecessor) withUnicode)
+                    <> annotate (markerColor isError marker) (unicode ">" "┤" withUnicode)
                     <> space
 
           -- we need to remove all blank markers because they are irrelevant to the display
@@ -480,7 +484,7 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
           (widths, renderedCode) = getLine_ files (allInlineMarkersInLine <> allMultilineMarkersInLine <> allMultilineMarkersSpanningLine') line tabSize isError
        in ( otherMultilines,
             hardline
-              <> {- (1) -} linePrefix leftLen line withUnicode <+> additionalPrefix
+              <> {- (1) -} linePrefix leftLen line withUnicode <+>  additionalPrefix
               <> renderedCode
               <> {- (2) -} showAllMarkersInLine (not $ null multiline) inSpanOfMultiline colorOfFirstMultilineMarker withUnicode isError leftLen widths allInlineMarkersInLine'
               <> showMultiline (isLastLine || List.safeLast multilineEndingOnLine == List.safeLast multiline) multilineEndingOnLine
@@ -493,14 +497,14 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
 
           prefix = hardline <+> dotPrefix leftLen withUnicode <> space
 
-          prefixWithBar color = prefix <> maybe id annotate color (if withUnicode then "│ " else "| ")
+          prefixWithBar color = prefix <> maybe id annotate color (unicode "| " "│ " withUnicode)
 
           showMultilineMarkerMessage (_, Blank) _ = mempty
           showMultilineMarkerMessage (_, marker) isLast =
             annotate (markerColor isError marker) $
               ( if isLast && isLastMultiline
-                  then if withUnicode then "╰╸ " else "`- "
-                  else if withUnicode then "├╸ " else "|- "
+                  then unicode "`- " "╰╸ " withUnicode
+                  else unicode "|- " "├╸ " withUnicode
               )
                 <> replaceLinesWith (if isLast then prefix <> "   " else prefixWithBar (Just $ markerColor isError marker) <> space) (annotated $ markerMessage marker)
 
@@ -514,10 +518,10 @@ getLine_ ::
   FileMap ->
   [(Position, Marker msg)] ->
   Int ->
-  Int ->
+  TabSize ->
   Bool ->
   (WidthTable, Doc (Annotation ann))
-getLine_ files markers line tabSize isError =
+getLine_ files markers line (TabSize tabSize) isError =
   case safeArrayIndex (line - 1) =<< (HashMap.!?) files . file . fst =<< List.safeHead markers of
     Nothing ->
       ( mkWidthTable "",
@@ -550,12 +554,12 @@ getLine_ files markers line tabSize isError =
     mkWidthTable s = listArray (1, length s) (ifTab tabSize wcwidth <$> s)
 
 -- |
-showAllMarkersInLine :: Bool -> Bool -> (Doc (Annotation ann) -> Doc (Annotation ann)) -> Bool -> Bool -> Int -> WidthTable -> [(Position, Marker (Doc ann))] -> Doc (Annotation ann)
+showAllMarkersInLine :: Bool -> Bool -> (Doc (Annotation ann) -> Doc (Annotation ann)) -> WithUnicode -> Bool -> Int -> WidthTable -> [(Position, Marker (Doc ann))] -> Doc (Annotation ann)
 showAllMarkersInLine _ _ _ _ _ _ _ [] = mempty
 showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUnicode isError leftLen widths ms =
   let maxMarkerColumn = snd $ end $ fst $ List.last $ List.sortOn (snd . end . fst) ms
       specialPrefix
-        | inSpanOfMultiline = colorMultilinePrefix (if withUnicode then "│ " else "| ") <> space
+        | inSpanOfMultiline = colorMultilinePrefix (unicode "| " "│ " withUnicode) <> space
         | hasMultilines = colorMultilinePrefix "  " <> space
         | otherwise = mempty
    in -- get the maximum end column, so that we know when to stop looking for other markers on the same line
@@ -576,8 +580,8 @@ showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUn
                 annotate
                   (markerColor isError marker)
                   ( if snd begin == n
-                      then (if withUnicode then "┬" else "^") <> fold (replicate (widthAt n - 1) if withUnicode then "─" else "-")
-                      else fold (replicate (widthAt n) if withUnicode then "─" else "-")
+                      then unicode "^" "┬" withUnicode <> fold (replicate (widthAt n - 1) (unicode "-" "─" withUnicode))
+                      else fold (replicate (widthAt n) (unicode "-" "─" withUnicode))
                   )
                   <> showMarkers (n + 1) lineLen
 
@@ -608,7 +612,7 @@ showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUn
               let (pipesBefore, pipesAfter) = List.partition ((< bc) . snd . begin . fst) nubbedPipes
                   -- split the list so that all pipes before can have `|`s but pipes after won't
 
-                  pipesBeforeRendered = pipesBefore <&> second \marker -> annotate (markerColor isError marker) (if withUnicode then "│" else "|")
+                  pipesBeforeRendered = pipesBefore <&> second \marker -> annotate (markerColor isError marker) (unicode "|" "│" withUnicode)
                   -- pre-render pipes which are before because they will be shown
 
                   lastBeginPosition = snd . begin . fst <$> List.safeLast (List.sortOn (snd . begin . fst) pipesAfter)
@@ -617,20 +621,15 @@ showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUn
                     Nothing -> 0
                     Just col -> widthsBetween bc col
 
-                  currentPipe =
-                    if
-                        | withUnicode && hasSuccessor -> "├"
-                        | withUnicode -> "╰"
-                        | hasSuccessor -> "|"
-                        | otherwise -> "`"
+                  currentPipe = unicode (bool "`" "|" hasSuccessor) (bool "╰" "├" hasSuccessor) withUnicode 
 
-                  lineChar = if withUnicode then '─' else '-'
-                  pointChar = if withUnicode then "╸" else "-"
+                  lineChar = unicode '-' '─' withUnicode
+                  pointChar = unicode "-" "╸" withUnicode
 
                   bc' = bc + lineLen + 2
                   pipesBeforeMessageStart = List.filter ((< bc') . snd . begin . fst) pipesAfter
                   -- consider pipes before, as well as pipes which came before the text rectangle bounds
-                  pipesBeforeMessageRendered = (pipesBefore <> pipesBeforeMessageStart) <&> second \marker -> annotate (markerColor isError marker) (if withUnicode then "│" else "|")
+                  pipesBeforeMessageRendered = (pipesBefore <> pipesBeforeMessageStart) <&> second \marker -> annotate (markerColor isError marker) (unicode "|" "│" withUnicode)
                in -- also pre-render pipes which are before the message text bounds, because they will be shown if the message is on
                   -- multiple lines
 
@@ -685,7 +684,7 @@ markerMessage Blank = undefined
 {-# INLINE markerMessage #-}
 
 -- | Pretty prints all hints.
-prettyAllHints :: [Note (Doc ann)] -> Int -> Bool -> Doc (Annotation ann)
+prettyAllHints :: [Note (Doc ann)] -> Int -> WithUnicode -> Doc (Annotation ann)
 prettyAllHints [] _ _ = mempty
 prettyAllHints (h : hs) leftLen withUnicode =
   {-
@@ -709,3 +708,8 @@ safeArrayIndex i a
 
 annotated :: Doc ann -> Doc (Annotation ann)
 annotated = reAnnotate OtherStyle
+
+unicode :: a -> a -> WithUnicode -> a
+unicode f t = \case
+  WithoutUnicode -> f
+  WithUnicode -> t

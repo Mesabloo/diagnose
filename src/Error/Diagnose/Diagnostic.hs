@@ -29,5 +29,7 @@ import Error.Diagnose.Diagnostic.Internal as Export
     printDiagnostic,
     printDiagnostic',
     warningsToErrors,
+    WithUnicode(..),
+    TabSize(..),
   )
 import System.IO as Export (stderr, stdout)
