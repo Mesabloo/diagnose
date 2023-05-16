@@ -1,5 +1,8 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -67,6 +70,7 @@ data Report msg
       -- ^ A map associating positions with marker to show under the source code.
       [Note msg]
       -- ^ A list of notes to add at the end of the report.
+  deriving (Functor, Foldable, Traversable)
 
 -- | Pattern synonym for a warning report.
 pattern Warn :: Maybe msg -> msg -> [(Position, Marker msg)] -> [Note msg] -> Report msg
@@ -120,6 +124,7 @@ data Marker msg
     Maybe msg
   | -- | An empty marker, whose sole purpose is to include a line of code in the report without markers under.
     Blank
+  deriving (Functor, Foldable, Traversable)
 
 instance Eq (Marker msg) where
   This _ == This _ = True
@@ -147,6 +152,7 @@ data Note msg
     Note msg
   | -- | A hint, to propose potential fixes or help towards fixing the issue.
     Hint msg
+  deriving (Functor, Foldable, Traversable)
 
 #ifdef USE_AESON
 instance ToJSON msg => ToJSON (Note msg) where

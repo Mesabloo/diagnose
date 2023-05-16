@@ -1,4 +1,7 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 -- |
@@ -47,6 +50,7 @@ data Diagnostic msg
       --   Reports are output one by one, without connections in between.
       !FileMap
       -- ^ A map associating files with their content as lists of lines.
+  deriving (Functor, Foldable, Traversable)
 
 instance Default (Diagnostic msg) where
   def = Diagnostic mempty mempty
