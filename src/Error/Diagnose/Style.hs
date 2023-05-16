@@ -1,4 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
 
 -- |
 -- Module      : Error.Diagnose.Style
@@ -71,7 +73,7 @@ data Annotation a
     CodeStyle
   | -- | Something else, could be provided by the user
     OtherStyle a
-  deriving (Functor)
+  deriving (Functor, Foldable, Traversable)
 
 -- | A style is a function which can be applied using 'reAnnotate'.
 --
