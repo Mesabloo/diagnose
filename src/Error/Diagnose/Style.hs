@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveFunctor #-}
+
 -- |
 -- Module      : Error.Diagnose.Style
 -- Description : Custom style definitions
@@ -37,7 +39,7 @@ import Prettyprinter.Render.Terminal (AnsiStyle, Color (..), bold, color, colorD
 -- For simplicity's sake, a default style is given as 'defaultStyle'.
 
 -- | Some annotations as placeholders for colors in a 'Doc'.
-data Annotation
+data Annotation a
   = -- | The color of 'Error.Diagnose.Report.This' markers, depending on whether the report is an error
     --   report or a warning report.
     ThisColor
@@ -63,15 +65,18 @@ data Annotation
   | -- | Additional style to apply to marker rules (e.g. bold) on top of some
     --   already processed color annotation.
     MarkerStyle
-      Annotation
+      (Annotation a)
   | -- | The color of the code when no marker is present.
     CodeStyle
+  | -- | Something else, could be provided by the user
+    OtherStyle a
+  deriving (Functor)
 
 -- | A style is a function which can be applied using 'reAnnotate'.
 --
 --   It transforms a 'Doc'ument containing 'Annotation's into a 'Doc'ument containing
 --   color information.
-type Style = Annotation -> AnsiStyle
+type Style a = Annotation a -> AnsiStyle
 
 -------------------------------------------
 
@@ -86,7 +91,7 @@ type Style = Annotation -> AnsiStyle
 --   * File names are output in dull green
 --   * The @[error]@/@[warning]@ at the top is colored in red for errors and yellow for warnings
 --   * The code is output in normal white
-defaultStyle :: Style
+defaultStyle :: Style AnsiStyle
 defaultStyle = \case
     ThisColor isError -> color if isError then Red else Yellow
     MaybeColor -> color Magenta
@@ -102,3 +107,4 @@ defaultStyle = \case
             then ann
             else bold <> ann
     CodeStyle -> color White
+    OtherStyle s -> s
