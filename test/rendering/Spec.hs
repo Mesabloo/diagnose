@@ -1,5 +1,7 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ParallelListComp #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 #ifdef USE_AESON
 import qualified Data.ByteString.Lazy as BS
@@ -16,12 +18,17 @@ import Error.Diagnose
     def,
     defaultStyle,
     printDiagnostic,
+    printDiagnostic',
     stdout,
     diagnosticToJson,
     WithUnicode (..),
     TabSize (..),
   )
 import System.IO (hPutStrLn)
+import Prettyprinter (Doc, annotate, pretty, hsep, indent, vsep)
+import Prettyprinter.Render.Terminal (AnsiStyle, Color (..), color, bold, italicized, underlined)
+import Data.Traversable (mapAccumL)
+import Data.Functor.Compose (Compose(..))
 
 main :: IO ()
 main = do
@@ -76,18 +83,76 @@ main = do
           errorWithBlankAndNormalMarkerInLine,
           beautifulExample
         ]
+      customAnnReports =
+        [ colorfulReport,
+          indentedReport
+        ]
 
   let diag = HashMap.foldlWithKey' addFile (foldl addReport def reports) files
+      customDiag = HashMap.foldlWithKey' addFile (foldl addReport def customAnnReports) files
 
   hPutStrLn stdout "\n\nWith unicode: ─────────────────────────\n"
   printDiagnostic stdout WithUnicode (TabSize 4) defaultStyle diag
   hPutStrLn stdout "\n\nWithout unicode: ----------------------\n"
   printDiagnostic stdout WithoutUnicode (TabSize 4) defaultStyle diag
+  hPutStrLn stdout "\n\nWith custom annotations: ----------------------\n"
+  printDiagnostic' stdout WithUnicode (TabSize 4) defaultStyle customDiag
 #ifdef USE_AESON
   hPutStrLn stdout "\n\nAs JSON: ------------------------------\n"
   BS.hPutStr stdout (diagnosticToJson diag)
 #endif
   hPutStrLn stdout "\n"
+
+colorfulReport :: Report (Doc AnsiStyle)
+colorfulReport =
+  fmap hsep
+    . getCompose
+    . snd
+    . mapAccumL
+      (\(c : cs) s -> (cs, annotate c (pretty s)))
+      styles
+    . Compose
+    . fmap words
+    $ realWorldExample
+ where
+  styles = [ color fg <> e
+      | fg <- cycle [Black, Red, Green, Yellow, Blue, Magenta, Cyan, White]
+      | e <- cycle [bold, italicized, underlined]
+      ]
+
+indentedReport :: Report (Doc AnsiStyle)
+indentedReport =
+  Err
+    Nothing
+    ("Indent..." <> indent 3 (vsep ["foo", "bar", "baz"]))
+    [(Position (1, 15) (1, 16) "test.zc", Maybe a)
+    ,(Position (1, 11) (1, 12) "test.zc", This b)
+    ,(Position (1, 5) (1, 10) "test.zc", Where c)
+    ]
+    []
+ where
+  a =
+    vsep
+      [ "A woman’s face with Nature’s own hand painted"
+      , "Hast thou, the master-mistress of my passion;"
+      , "A woman’s gentle heart, but not acquainted"
+      , "With shifting change, as is false women’s fashion;"
+      ]
+  b =
+    vsep
+      [ "An eye more bright than theirs, less false in rolling,"
+      , "Gilding the object whereupon it gazeth;"
+      , "A man in hue, all “hues” in his controlling,"
+      , "Which steals men’s eyes and women’s souls amazeth."
+      ]
+  c = vsep
+      [ "And for a woman wert thou first created;"
+      , "Till Nature, as she wrought thee, fell a-doting,"
+      , "And by addition me of thee defeated,"
+      , "By adding one thing to my purpose nothing."
+      , indent 4 "But since she prick’d thee out for women’s pleasure,"
+      , indent 4 "Mine be thy love and thy love’s use their treasure."
+      ]
 
 errorNoMarkersNoHints :: Report String
 errorNoMarkersNoHints =
