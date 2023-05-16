@@ -34,8 +34,8 @@ import Data.List (intersperse)
 import Error.Diagnose.Report (Report)
 import Error.Diagnose.Report.Internal (FileMap, errorToWarning, prettyReport, warningToError)
 import Error.Diagnose.Style (Annotation, Style)
-import Prettyprinter (Doc, Pretty, hardline, unAnnotate)
-import Prettyprinter.Render.Terminal (hPutDoc)
+import Prettyprinter (Doc, Pretty, hardline, unAnnotate, pretty)
+import Prettyprinter.Render.Terminal (hPutDoc, AnsiStyle)
 import System.IO (Handle)
 
 -- | The data type for diagnostic containing messages of an abstract type.
@@ -108,9 +108,24 @@ prettyDiagnostic ::
   -- | The diagnostic to print.
   Diagnostic msg ->
   Doc Annotation
-prettyDiagnostic withUnicode tabSize (Diagnostic reports file) =
-  fold . intersperse hardline $ prettyReport file withUnicode tabSize <$> toList reports
+prettyDiagnostic withUnicode tabSize =
+  prettyDiagnostic' id withUnicode tabSize . fmap pretty
 {-# INLINE prettyDiagnostic #-}
+
+-- | Like 'prettyDiagnostic', but instead of requiring a 'Pretty' instance for
+-- diagnostic messages this allows you to provide your own 'Doc's
+prettyDiagnostic' ::
+  -- | How to reannotate Diagnose's output
+  (Annotation -> ann) ->
+  -- | Should we use unicode when printing paths?
+  Bool ->
+  -- | The number of spaces each TAB character will span.
+  Int ->
+  -- | The diagnostic to print.
+  Diagnostic (Doc ann) ->
+  Doc ann
+prettyDiagnostic' sty withUnicode tabSize (Diagnostic reports file) =
+  fold . intersperse hardline $ prettyReport sty file withUnicode tabSize <$> toList reports
 
 -- | Prints a 'Diagnostic' onto a specific 'Handle'.
 printDiagnostic ::
@@ -128,9 +143,27 @@ printDiagnostic ::
   -- | The diagnostic to output.
   Diagnostic msg ->
   m ()
-printDiagnostic handle withUnicode withColors tabSize style diag =
-  liftIO $ hPutDoc handle ((if withColors then style else unAnnotate) $ prettyDiagnostic withUnicode tabSize diag)
+printDiagnostic handle withUnicode withColors tabSize style =
+  printDiagnostic' handle withUnicode tabSize (if withColors then style else const mempty) . fmap pretty
 {-# INLINE printDiagnostic #-}
+
+-- | Like 'printDiagnostic', but instead of requiring a 'Pretty' instance for
+-- diagnostic messages this allows you to provide your own 'Doc's
+printDiagnostic' ::
+  (MonadIO m) =>
+  -- | The handle onto which to output the diagnostic.
+  Handle ->
+  -- | Should we print with unicode characters?
+  Bool ->
+  -- | The number of spaces each TAB character will span.
+  Int ->
+  -- | How to reannotate Diagnose's output
+  (Annotation -> AnsiStyle) ->
+  -- | The diagnostic to output.
+  Diagnostic (Doc AnsiStyle) ->
+  m ()
+printDiagnostic' handle withUnicode tabSize sty diag =
+  liftIO $ hPutDoc handle (prettyDiagnostic' sty withUnicode tabSize diag)
 
 -- | Inserts a new referenceable file within the diagnostic.
 addFile ::

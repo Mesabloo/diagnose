@@ -13,13 +13,9 @@ module Error.Diagnose.Style
 
     -- * Default style specification
     defaultStyle,
-
-    -- * Re-exports
-    reAnnotate,
   )
 where
 
-import Prettyprinter (Doc, reAnnotate)
 import Prettyprinter.Render.Terminal (AnsiStyle, Color (..), bold, color, colorDull)
 
 -- $defining_new_styles
@@ -75,7 +71,7 @@ data Annotation
 --
 --   It transforms a 'Doc'ument containing 'Annotation's into a 'Doc'ument containing
 --   color information.
-type Style = Doc Annotation -> Doc AnsiStyle
+type Style = Annotation -> AnsiStyle
 
 -------------------------------------------
 
@@ -91,20 +87,18 @@ type Style = Doc Annotation -> Doc AnsiStyle
 --   * The @[error]@/@[warning]@ at the top is colored in red for errors and yellow for warnings
 --   * The code is output in normal white
 defaultStyle :: Style
-defaultStyle = reAnnotate style
-  where
-    style = \case
-      ThisColor isError -> color if isError then Red else Yellow
-      MaybeColor -> color Magenta
-      WhereColor -> colorDull Blue
-      HintColor -> color Cyan
-      FileColor -> bold <> colorDull Green
-      RuleColor -> bold <> color Black
-      KindColor isError -> bold <> style (ThisColor isError)
-      NoLineColor -> bold <> colorDull Magenta
-      MarkerStyle st ->
-        let ann = style st
-         in if ann == style CodeStyle
-              then ann
-              else bold <> ann
-      CodeStyle -> color White
+defaultStyle = \case
+    ThisColor isError -> color if isError then Red else Yellow
+    MaybeColor -> color Magenta
+    WhereColor -> colorDull Blue
+    HintColor -> color Cyan
+    FileColor -> bold <> colorDull Green
+    RuleColor -> bold <> color Black
+    KindColor isError -> bold <> defaultStyle (ThisColor isError)
+    NoLineColor -> bold <> colorDull Magenta
+    MarkerStyle st ->
+      let ann = defaultStyle st
+       in if ann == defaultStyle CodeStyle
+            then ann
+            else bold <> ann
+    CodeStyle -> color White
