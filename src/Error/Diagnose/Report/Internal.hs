@@ -155,7 +155,7 @@ data Note msg
     Note msg
   | -- | A hint, to propose potential fixes or help towards fixing the issue.
     Hint msg
-  deriving (Functor, Foldable, Traversable)
+  deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
 #ifdef USE_AESON
 instance ToJSON msg => ToJSON (Note msg) where
