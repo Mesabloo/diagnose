@@ -39,13 +39,12 @@ import Data.Char.WCWidth (wcwidth)
 import Data.Default (def)
 import Data.Foldable (fold)
 import Data.Function (on)
-import Data.Functor ((<&>))
+import Data.Functor ((<&>), void)
 import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
 import qualified Data.List as List
 import qualified Data.List.Safe as List
 import Data.Maybe
-import Data.Ord (Down (Down))
 import Data.String (IsString (fromString))
 import qualified Data.Text as Text
 import Error.Diagnose.Position
@@ -125,27 +124,12 @@ data Marker msg
     Maybe msg
   | -- | An empty marker, whose sole purpose is to include a line of code in the report without markers under.
     Blank
-  deriving (Functor)
+  deriving (Functor, Eq, Ord)
 
-instance Eq (Marker msg) where
-  This _ == This _ = True
-  Where _ == Where _ = True
-  Maybe _ == Maybe _ = True
-  Blank == Blank = True
-  _ == _ = False
-  {-# INLINEABLE (==) #-}
-
-instance Ord (Marker msg) where
-  This _ < _ = False
-  Where _ < This _ = True
-  Where _ < _ = False
-  Maybe _ < _ = True
-  _ < Blank = True
-  Blank < _ = False
-  {-# INLINEABLE (<) #-}
-
-  m1 <= m2 = m1 < m2 || m1 == m2
-  {-# INLINEABLE (<=) #-}
+isBlank :: Marker msg -> Bool
+isBlank = \case
+  Blank -> True
+  _ -> False
 
 -- | A note is a piece of information that is found at the end of a report.
 data Note msg
@@ -378,7 +362,7 @@ prettySubReport fileContent withUnicode isError tabSize maxLineNumberLength isFi
 
       sortedMarkersPerLine = {- second (List.sortOn (first $ snd . begin)) <$> -} List.sortOn fst (HashMap.toList markersPerLine)
 
-      reportFile = maybe (pretty @Position def) (pretty . fst) $ List.safeHead (List.sortOn (Down . snd) markers)
+      reportFile = maybe (pretty @Position def) (pretty . fst) $ List.safeHead (List.sortOn (void . snd) markers)
       -- the reported file is the file of the first 'This' marker (only one must be present)
 
       allLineNumbers = List.sort $ List.nub $ (fst <$> sortedMarkersPerLine) <> (multilineMarkers >>= \(Position (bl, _) (el, _) _, _) -> [bl .. el])
@@ -459,6 +443,8 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
           -- take the first multiline marker to color the entire line, if there is one
 
           (multilineEndingOnLine, otherMultilines) = flip List.partition multiline \(Position _ (el, _) _, _) -> el == line
+          shouldShowMultiLine = isLastLine
+            || ((==) `on` fmap (fmap void)) (List.safeLast multilineEndingOnLine) (List.safeLast multiline)
 
           !additionalPrefix = case allMultilineMarkersInLine of
             [] ->
@@ -476,8 +462,8 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
                     <> space
 
           -- we need to remove all blank markers because they are irrelevant to the display
-          allInlineMarkersInLine' = filter ((/=) Blank . snd) allInlineMarkersInLine
-          allMultilineMarkersSpanningLine' = filter ((/=) Blank . snd) allMultilineMarkersSpanningLine
+          allInlineMarkersInLine' = filter (not . isBlank . snd) allInlineMarkersInLine
+          allMultilineMarkersSpanningLine' = filter (not . isBlank . snd) allMultilineMarkersSpanningLine
 
           (widths, renderedCode) = getLine_ files (allInlineMarkersInLine <> allMultilineMarkersInLine <> allMultilineMarkersSpanningLine') line tabSize isError
        in ( otherMultilines,
@@ -485,7 +471,7 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
               <> {- (1) -} linePrefix leftLen line withUnicode <+>  additionalPrefix
               <> renderedCode
               <> {- (2) -} showAllMarkersInLine (not $ null multiline) inSpanOfMultiline colorOfFirstMultilineMarker withUnicode isError leftLen widths allInlineMarkersInLine'
-              <> showMultiline (isLastLine || List.safeLast multilineEndingOnLine == List.safeLast multiline) multilineEndingOnLine
+              <> showMultiline shouldShowMultiLine multilineEndingOnLine
           )
 
     showMultiline _ [] = mempty
@@ -570,7 +556,7 @@ showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUn
     showMarkers n lineLen
       | n > lineLen = mempty -- reached the end of the line
       | otherwise =
-        let allMarkers = flip filter ms \(Position (_, bc) (_, ec) _, mark) -> mark /= Blank && n >= bc && n < ec
+        let allMarkers = flip filter ms \(Position (_, bc) (_, ec) _, mark) -> not (isBlank mark) && n >= bc && n < ec
          in -- only consider markers which span onto the current column
             case allMarkers of
               [] -> fold (replicate (widthAt n) space) <> showMarkers (n + 1) lineLen
@@ -586,7 +572,7 @@ showAllMarkersInLine hasMultilines inSpanOfMultiline colorMultilinePrefix withUn
     showMessages specialPrefix ms lineLen = case List.safeUncons ms of
       Nothing -> mempty -- no more messages to show
       Just ((Position b@(_, bc) _ _, msg), pipes) ->
-        let filteredPipes = filter (uncurry (&&) . bimap ((/= b) . begin) (/= Blank)) pipes
+        let filteredPipes = filter (uncurry (&&) . bimap ((/= b) . begin) (not . isBlank)) pipes
             -- record only the pipes corresponding to markers on different starting positions
             nubbedPipes = List.nubBy ((==) `on` (begin . fst)) filteredPipes
             -- and then remove all duplicates
