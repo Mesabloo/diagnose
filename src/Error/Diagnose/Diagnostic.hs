@@ -20,7 +20,6 @@ import Error.Diagnose.Diagnostic.Internal as Export
 #endif
     addFile,
     addReport,
-    def,
     errorsToWarnings,
     hasReports,
     reportsOf,
