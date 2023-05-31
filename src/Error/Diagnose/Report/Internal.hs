@@ -46,7 +46,6 @@ import qualified Data.List as List
 import qualified Data.List.Safe as List
 import Data.Maybe
 import Data.String (IsString (fromString))
-import qualified Data.Text as Text
 import Error.Diagnose.Position
 import Error.Diagnose.Style (Annotation (..))
 import Prettyprinter (Doc, Pretty (..), align, annotate, colon, hardline, lbracket, rbracket, space, width, (<+>), reAnnotate, SimpleDocStream (..), layoutCompact)
