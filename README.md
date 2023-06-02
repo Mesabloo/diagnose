@@ -102,8 +102,8 @@ let beautifulExample =
 let diagnostic  = addFile def "somefile.zc" "let id<a>(x : a) : a := x\n  + 1"
 let diagnostic' = addReport diagnostic beautifulExample
 
--- Print with unicode characters, colors and the default style
-printDiagnostic stdout True True 4 defaultStyle diagnostic'
+-- Print with unicode characters, and the default (colorful) style
+printDiagnostic stdout WithUnicode 4 defaultStyle diagnostic'
 ```
 
 More examples are given in the [`test/rendering`](./test/rendering) folder (execute `stack test` to see the output).

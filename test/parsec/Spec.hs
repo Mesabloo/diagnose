@@ -3,7 +3,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 
 {-# OPTIONS -Wno-orphans #-}
 
@@ -32,13 +31,13 @@ main = do
       res3 = first (errorDiagnosticFromParseError Nothing "Parse error on input" Nothing) $ P.parse (test1 <* P.eof) filename content3
 
   case res1 of
-    Left diag -> printDiagnostic stdout True True 4 defaultStyle (addFile diag filename (Text.unpack content1) :: Diagnostic String)
+    Left diag -> printDiagnostic stdout WithUnicode (TabSize 4) defaultStyle (addFile diag filename (Text.unpack content1) :: Diagnostic String)
     Right res -> print res
   case res2 of
-    Left diag -> printDiagnostic stdout True True 4 defaultStyle (addFile diag filename (Text.unpack content2) :: Diagnostic String)
+    Left diag -> printDiagnostic stdout WithUnicode (TabSize 4) defaultStyle (addFile diag filename (Text.unpack content2) :: Diagnostic String)
     Right res -> print res
   case res3 of
-    Left diag -> printDiagnostic stdout True True 4 defaultStyle (addFile diag filename (Text.unpack content3) :: Diagnostic String)
+    Left diag -> printDiagnostic stdout WithUnicode (TabSize 4) defaultStyle (addFile diag filename (Text.unpack content3) :: Diagnostic String)
     Right res -> print res
 
   -- all issue reproduction

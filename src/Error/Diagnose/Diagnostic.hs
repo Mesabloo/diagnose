@@ -25,7 +25,11 @@ import Error.Diagnose.Diagnostic.Internal as Export
     hasReports,
     reportsOf,
     prettyDiagnostic,
+    prettyDiagnostic',
     printDiagnostic,
+    printDiagnostic',
     warningsToErrors,
+    WithUnicode(..),
+    TabSize(..),
   )
 import System.IO as Export (stderr, stdout)

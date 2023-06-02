@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveTraversable #-}
+
 -- |
 -- Module      : Error.Diagnose.Style
 -- Description : Custom style definitions
@@ -11,15 +13,12 @@ module Error.Diagnose.Style
     Style,
     -- $defining_new_styles
 
-    -- * Default style specification
+    -- * Styles
     defaultStyle,
-
-    -- * Re-exports
-    reAnnotate,
+    unadornedStyle,
   )
 where
 
-import Prettyprinter (Doc, reAnnotate)
 import Prettyprinter.Render.Terminal (AnsiStyle, Color (..), bold, color, colorDull)
 
 -- $defining_new_styles
@@ -41,7 +40,7 @@ import Prettyprinter.Render.Terminal (AnsiStyle, Color (..), bold, color, colorD
 -- For simplicity's sake, a default style is given as 'defaultStyle'.
 
 -- | Some annotations as placeholders for colors in a 'Doc'.
-data Annotation
+data Annotation a
   = -- | The color of 'Error.Diagnose.Report.This' markers, depending on whether the report is an error
     --   report or a warning report.
     ThisColor
@@ -67,17 +66,24 @@ data Annotation
   | -- | Additional style to apply to marker rules (e.g. bold) on top of some
     --   already processed color annotation.
     MarkerStyle
-      Annotation
+      (Annotation a)
   | -- | The color of the code when no marker is present.
     CodeStyle
+  | -- | Something else, could be provided by the user
+    OtherStyle a
+  deriving (Functor, Foldable, Traversable)
 
 -- | A style is a function which can be applied using 'reAnnotate'.
 --
 --   It transforms a 'Doc'ument containing 'Annotation's into a 'Doc'ument containing
 --   color information.
-type Style = Doc Annotation -> Doc AnsiStyle
+type Style a = Annotation a -> AnsiStyle
 
 -------------------------------------------
+
+-- | A style which disregards all annotations
+unadornedStyle :: Style a
+unadornedStyle = const mempty
 
 -- | The default style for diagnostics, where:
 --
@@ -90,21 +96,20 @@ type Style = Doc Annotation -> Doc AnsiStyle
 --   * File names are output in dull green
 --   * The @[error]@/@[warning]@ at the top is colored in red for errors and yellow for warnings
 --   * The code is output in normal white
-defaultStyle :: Style
-defaultStyle = reAnnotate style
-  where
-    style = \case
-      ThisColor isError -> color if isError then Red else Yellow
-      MaybeColor -> color Magenta
-      WhereColor -> colorDull Blue
-      HintColor -> color Cyan
-      FileColor -> bold <> colorDull Green
-      RuleColor -> bold <> color Black
-      KindColor isError -> bold <> style (ThisColor isError)
-      NoLineColor -> bold <> colorDull Magenta
-      MarkerStyle st ->
-        let ann = style st
-         in if ann == style CodeStyle
-              then ann
-              else bold <> ann
-      CodeStyle -> color White
+defaultStyle :: Style AnsiStyle
+defaultStyle = \case
+    ThisColor isError -> color if isError then Red else Yellow
+    MaybeColor -> color Magenta
+    WhereColor -> colorDull Blue
+    HintColor -> color Cyan
+    FileColor -> bold <> colorDull Green
+    RuleColor -> bold <> color Black
+    KindColor isError -> bold <> defaultStyle (ThisColor isError)
+    NoLineColor -> bold <> colorDull Magenta
+    MarkerStyle st ->
+      let ann = defaultStyle st
+       in if ann == defaultStyle CodeStyle
+            then ann
+            else bold <> ann
+    CodeStyle -> color White
+    OtherStyle s -> s
