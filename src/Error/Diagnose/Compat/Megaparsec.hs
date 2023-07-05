@@ -47,7 +47,7 @@ diagnosticFromBundle ::
   MP.ParseErrorBundle s e ->
   Diagnostic msg
 diagnosticFromBundle isError code msg (fromMaybe [] -> trivialHints) MP.ParseErrorBundle {..} =
-  foldl addReport def (toLabeledPosition <$> bundleErrors)
+  foldl addReport mempty (toLabeledPosition <$> bundleErrors)
   where
     toLabeledPosition :: MP.ParseError s e -> Report msg
     toLabeledPosition error =

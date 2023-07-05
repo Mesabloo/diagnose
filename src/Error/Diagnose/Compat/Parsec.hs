@@ -48,7 +48,7 @@ diagnosticFromParseError isError code msg (fromMaybe [] -> defaultHints) error =
   let pos = fromSourcePos $ PE.errorPos error
       markers = toMarkers pos $ PE.errorMessages error
       report = (if isError error then Err code msg else Warn code msg) markers (defaultHints <> hints (undefined :: Void))
-   in addReport def report
+   in addReport mempty report
   where
     fromSourcePos :: PP.SourcePos -> Position
     fromSourcePos pos =

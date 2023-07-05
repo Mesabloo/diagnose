@@ -1,11 +1,11 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
 name:           diagnose
-version:        2.5.0
+version:        2.5.1
 synopsis:       Beautiful error reporting done easily
 description:    This package provides a simple way of getting beautiful compiler/interpreter errors
                 using a very simple interface for the programmer.
