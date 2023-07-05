@@ -39,7 +39,8 @@ You don't even need to `import Prettyprinter`, as it is already provided to you 
 A diagnostic can be viewed as a collection of reports, spanning on files.
 This is what the `Diagnostic` type embodies.
 
-It has a `Default` instance, which can be used to construct an empty diagnostic (contains no reports, and has no files).
+It is an instance of `Monoid`, which can be used to construct an empty
+diagnostic (contains no reports, and has no files).
 
 The second step is to add some reports.
 There are two kinds of reports:
@@ -99,7 +100,7 @@ let beautifulExample =
         -- ^^^^ This is a 'Note' not a 'Hint', as specified by its 'IsString' instance
 
 -- Create the diagnostic
-let diagnostic  = addFile def "somefile.zc" "let id<a>(x : a) : a := x\n  + 1"
+let diagnostic  = addFile mempty "somefile.zc" "let id<a>(x : a) : a := x\n  + 1"
 let diagnostic' = addReport diagnostic beautifulExample
 
 -- Print with unicode characters, and the default (colorful) style

@@ -41,10 +41,7 @@ data Position = Position
     -- | The file this position spans in.
     file :: FilePath
   }
-  deriving (Show, Eq, Generic)
-
-instance Ord Position where
-  Position b1 e1 _ `compare` Position b2 e2 _ = (b1, e1) `compare` (b2, e2)
+  deriving (Show, Eq, Ord, Generic)
 
 instance Pretty Position where
   pretty (Position (bl, bc) (el, ec) f) = pretty f <> at <> pretty bl <> colon <> pretty bc <> dash <> pretty el <> colon <> pretty ec

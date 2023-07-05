@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveTraversable #-}
-
+{-# LANGUAGE DeriveGeneric #-}
 -- |
 -- Module      : Error.Diagnose.Style
 -- Description : Custom style definitions
@@ -19,6 +19,7 @@ module Error.Diagnose.Style
   )
 where
 
+import GHC.Generics
 import Prettyprinter.Render.Terminal (AnsiStyle, Color (..), bold, color, colorDull)
 
 -- $defining_new_styles
@@ -71,7 +72,7 @@ data Annotation a
     CodeStyle
   | -- | Something else, could be provided by the user
     OtherStyle a
-  deriving (Functor, Foldable, Traversable)
+  deriving (Eq, Ord, Show, Generic, Functor, Foldable, Traversable)
 
 -- | A style is a function which can be applied using 'reAnnotate'.
 --

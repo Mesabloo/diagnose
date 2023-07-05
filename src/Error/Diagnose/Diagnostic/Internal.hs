@@ -14,7 +14,7 @@
 --            It is also highly undocumented.
 --
 --            Please limit yourself to the "Error.Diagnose.Diagnostic" module, which exports some of the useful functions defined here.
-module Error.Diagnose.Diagnostic.Internal (module Error.Diagnose.Diagnostic.Internal, def, WithUnicode(..), TabSize(..)) where
+module Error.Diagnose.Diagnostic.Internal (module Error.Diagnose.Diagnostic.Internal, WithUnicode(..), TabSize(..)) where
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
 #ifdef USE_AESON
@@ -25,7 +25,6 @@ import Data.ByteString.Lazy (ByteString)
 import Data.Array (listArray)
 import Data.DList (DList)
 import qualified Data.DList as DL
-import Data.Default (Default, def)
 import Data.Foldable (fold, toList)
 import qualified Data.HashMap.Lazy as HashMap
 import Data.List (intersperse)
@@ -38,8 +37,8 @@ import System.IO (Handle)
 
 -- | The data type for diagnostic containing messages of an abstract type.
 --
---   The constructors are private, but users can use 'def' from the 'Default' typeclass
---   to create a new empty diagnostic, and 'addFile' and 'addReport' to alter its internal state.
+--   Users can use 'mempty' to create a new empty diagnostic, and 'addFile' and
+--   'addReport' to alter its internal state.
 data Diagnostic msg
   = Diagnostic
       (DList (Report msg))
@@ -50,11 +49,11 @@ data Diagnostic msg
       -- ^ A map associating files with their content as lists of lines.
   deriving (Functor, Foldable, Traversable)
 
-instance Default (Diagnostic msg) where
-  def = Diagnostic mempty mempty
+instance Monoid (Diagnostic msg) where
+  mempty = Diagnostic mempty mempty
 
 instance Semigroup (Diagnostic msg) where
-  Diagnostic rs1 file <> Diagnostic rs2 _ = Diagnostic (rs1 <> rs2) file
+  Diagnostic rs1 files1 <> Diagnostic rs2 files2 = Diagnostic (rs1 <> rs2) (files1 <> files2)
 
 #ifdef USE_AESON
 instance ToJSON msg => ToJSON (Diagnostic msg) where

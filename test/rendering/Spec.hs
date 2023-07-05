@@ -16,7 +16,6 @@ import Error.Diagnose
     Report(..),
     addFile,
     addReport,
-    def,
     defaultStyle,
     printDiagnostic,
     printDiagnostic',
@@ -90,8 +89,8 @@ main = do
           nestingReport
         ]
 
-  let diag = HashMap.foldlWithKey' addFile (foldl addReport def reports) files
-      customDiag = HashMap.foldlWithKey' addFile (foldl addReport def customAnnReports) files
+  let diag = HashMap.foldlWithKey' addFile (foldl addReport mempty reports) files
+      customDiag = HashMap.foldlWithKey' addFile (foldl addReport mempty customAnnReports) files
 
   hPutStrLn stdout "\n\nWith unicode: ─────────────────────────\n"
   printDiagnostic stdout WithUnicode (TabSize 4) defaultStyle diag
