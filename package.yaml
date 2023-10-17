@@ -16,7 +16,7 @@ dependencies:
 - prettyprinter-ansi-terminal >= 1.1.2 && < 2
 - unordered-containers >= 0.2.11 && < 0.3
 - wcwidth >= 0.0.1 && <1
-- text >= 1.0.0.0 && <= 2.0
+- text >= 1.0.0.0 && < 2.1
 # ^^^ This is unfortunately required, but as 'prettyprinter' already depends on it, it will already have been fetched
 # into the local cache anyway.
 
