@@ -36,7 +36,7 @@ import qualified Data.Array.IArray as Array
 import Data.Array.Unboxed (Array, IArray, Ix, UArray, listArray, (!))
 import Data.Bifunctor (bimap, first, second)
 import Data.Char.WCWidth (wcwidth)
-import Data.Default (def)
+import Data.Default.Class (def)
 import Data.Foldable (fold)
 import Data.Function (on)
 import Data.Functor ((<&>), void)
