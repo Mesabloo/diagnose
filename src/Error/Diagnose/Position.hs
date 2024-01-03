@@ -16,7 +16,7 @@ module Error.Diagnose.Position (Position (..)) where
 #ifdef USE_AESON
 import Data.Aeson (ToJSON(..), object, (.=))
 #endif
-import Data.Default (Default, def)
+import Data.Default.Class (Default, def)
 import Data.Hashable (Hashable)
 import GHC.Generics (Generic (..))
 import Prettyprinter (Pretty (..), colon)
