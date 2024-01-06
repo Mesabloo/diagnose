@@ -82,8 +82,7 @@ library
       , bytestring >=0.9 && <1
   if flag(megaparsec-compat)
     build-depends:
-        containers ==0.6.*
-      , megaparsec >=9.0.0
+        megaparsec >=9.0.0
   if flag(parsec-compat)
     build-depends:
         parsec >=3.1.14
@@ -128,8 +127,7 @@ test-suite diagnose-megaparsec-tests
       , bytestring >=0.9 && <1
   if flag(megaparsec-compat)
     build-depends:
-        containers ==0.6.*
-      , megaparsec >=9.0.0
+        megaparsec >=9.0.0
   if flag(parsec-compat)
     build-depends:
         parsec >=3.1.14
@@ -169,8 +167,7 @@ test-suite diagnose-parsec-tests
       , bytestring >=0.9 && <1
   if flag(megaparsec-compat)
     build-depends:
-        containers ==0.6.*
-      , megaparsec >=9.0.0
+        megaparsec >=9.0.0
   if flag(parsec-compat)
     build-depends:
         parsec >=3.1.14
@@ -208,8 +205,7 @@ test-suite diagnose-rendering-tests
       , bytestring >=0.9 && <1
   if flag(megaparsec-compat)
     build-depends:
-        containers ==0.6.*
-      , megaparsec >=9.0.0
+        megaparsec >=9.0.0
   if flag(parsec-compat)
     build-depends:
         parsec >=3.1.14

@@ -24,8 +24,8 @@ module Error.Diagnose.Compat.Megaparsec
 where
 
 import Data.Bifunctor (second)
+import Data.Foldable (toList)
 import Data.Maybe (fromMaybe)
-import qualified Data.Set as Set (toList)
 import Data.String (IsString (..))
 import Error.Diagnose
 import Error.Diagnose.Compat.Hints (HasHints (..))
@@ -71,7 +71,7 @@ diagnosticFromBundle isError code msg (fromMaybe [] -> trivialHints) MP.ParseErr
     errorHints :: MP.ParseError s e -> [Note msg]
     errorHints MP.TrivialError {} = trivialHints
     errorHints (MP.FancyError _ errs) =
-      Set.toList errs >>= \case
+      toList errs >>= \case
         MP.ErrorCustom e -> hints e
         _ -> mempty
 
