@@ -11,7 +11,6 @@ dependencies:
 - array >= 0.5 && < 0.6
 - data-default >= 0.7 && < 1
 - dlist >= 1.0 && < 1.1
-- hashable >= 1.3 && < 2
 - prettyprinter >= 1.7.0 && < 2
 - prettyprinter-ansi-terminal >= 1.1.2 && < 2
 - unordered-containers >= 0.2.11 && < 0.3
@@ -40,6 +39,10 @@ library:
     - Error.Diagnose.Compat.Parsec
 
 flags:
+  hashable:
+    description: "Enables the `Hashable Position` instance, and the `hashable` dependency."
+    manual: true
+    default: false
   json:
     description: "Allows exporting diagnostics as JSON.
       This is disabled by default as this relies on the very heavy dependency Aeson."
@@ -70,6 +73,11 @@ when:
   - condition: flag(parsec-compat)
     dependencies:
     - parsec >= 3.1.14
+  - condition: flag(hashable)
+    cpp-options:
+    - -DHASHABLE
+    dependencies:
+    - hashable >= 1.3 && < 2
 
 ghc-options:
 - -Wall
