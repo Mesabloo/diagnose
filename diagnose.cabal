@@ -28,6 +28,11 @@ source-repository head
   type: git
   location: https://github.com/mesabloo/diagnose
 
+flag hashable
+  description: Enables the `Hashable Position` instance, and the `hashable` dependency.
+  manual: True
+  default: False
+
 flag json
   description: Allows exporting diagnostics as JSON. This is disabled by default as this relies on the very heavy dependency Aeson.
   manual: True
@@ -69,7 +74,6 @@ library
     , base >=4.7 && <5
     , data-default >=0.7 && <1
     , dlist ==1.0.*
-    , hashable >=1.3 && <2
     , prettyprinter >=1.7.0 && <2
     , prettyprinter-ansi-terminal >=1.1.2 && <2
     , unordered-containers >=0.2.11 && <0.3
@@ -87,6 +91,10 @@ library
   if flag(parsec-compat)
     build-depends:
         parsec >=3.1.14
+  if flag(hashable)
+    cpp-options: -DHASHABLE
+    build-depends:
+        hashable >=1.3 && <2
   if flag(megaparsec-compat)
     exposed-modules:
         Error.Diagnose.Compat.Megaparsec
@@ -114,7 +122,6 @@ test-suite diagnose-megaparsec-tests
     , data-default >=0.7 && <1
     , diagnose
     , dlist ==1.0.*
-    , hashable >=1.3 && <2
     , prettyprinter >=1.7.0 && <2
     , prettyprinter-ansi-terminal >=1.1.2 && <2
     , text >=1.2 && <3
@@ -133,6 +140,10 @@ test-suite diagnose-megaparsec-tests
   if flag(parsec-compat)
     build-depends:
         parsec >=3.1.14
+  if flag(hashable)
+    cpp-options: -DHASHABLE
+    build-depends:
+        hashable >=1.3 && <2
   if !(flag(megaparsec-compat))
     buildable: False
 
@@ -155,7 +166,6 @@ test-suite diagnose-parsec-tests
     , data-default >=0.7 && <1
     , diagnose
     , dlist ==1.0.*
-    , hashable >=1.3 && <2
     , prettyprinter >=1.7.0 && <2
     , prettyprinter-ansi-terminal >=1.1.2 && <2
     , text >=1.2 && <3
@@ -174,6 +184,10 @@ test-suite diagnose-parsec-tests
   if flag(parsec-compat)
     build-depends:
         parsec >=3.1.14
+  if flag(hashable)
+    cpp-options: -DHASHABLE
+    build-depends:
+        hashable >=1.3 && <2
   if !(flag(parsec-compat))
     buildable: False
 
@@ -195,7 +209,6 @@ test-suite diagnose-rendering-tests
     , data-default >=0.7 && <1
     , diagnose
     , dlist ==1.0.*
-    , hashable >=1.3 && <2
     , prettyprinter >=1.7.0 && <2
     , prettyprinter-ansi-terminal >=1.1.2 && <2
     , unordered-containers >=0.2.11 && <0.3
@@ -213,3 +226,7 @@ test-suite diagnose-rendering-tests
   if flag(parsec-compat)
     build-depends:
         parsec >=3.1.14
+  if flag(hashable)
+    cpp-options: -DHASHABLE
+    build-depends:
+        hashable >=1.3 && <2

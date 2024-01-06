@@ -17,7 +17,9 @@ module Error.Diagnose.Position (Position (..)) where
 import Data.Aeson (ToJSON(..), object, (.=))
 #endif
 import Data.Default (Default, def)
+#ifdef HASHABLE
 import Data.Hashable (Hashable)
+#endif
 import GHC.Generics (Generic (..))
 import Prettyprinter (Pretty (..), colon)
 
@@ -49,7 +51,9 @@ instance Pretty Position where
       at = pretty @String "@"
       dash = pretty @String "-"
 
+#ifdef HASHABLE
 instance Hashable Position
+#endif
 
 instance Default Position where
   def = Position (1, 1) (1, 1) "<no-file>"
