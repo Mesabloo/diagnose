@@ -26,7 +26,6 @@ import Data.Array (listArray)
 import Data.DList (DList)
 import qualified Data.DList as DL
 import Data.Foldable (fold, toList)
-import qualified Data.HashMap.Lazy as HashMap
 import Data.List (intersperse)
 import Error.Diagnose.Report (Report)
 import Error.Diagnose.Report.Internal (FileMap, errorToWarning, prettyReport, warningToError, WithUnicode(..), TabSize(..))
@@ -58,7 +57,7 @@ instance Semigroup (Diagnostic msg) where
 #ifdef USE_AESON
 instance ToJSON msg => ToJSON (Diagnostic msg) where
   toJSON (Diagnostic reports files) =
-    object [ "files" .= fmap toJSONFile (fmap toList <$> (HashMap.toList files))
+    object [ "files" .= fmap toJSONFile (fmap toList <$> files)
            , "reports" .= reports
            ]
     where
@@ -175,7 +174,7 @@ addFile (Diagnostic reports files) path content =
   let fileLines = lines content
       lineCount = length fileLines
       lineArray = listArray (0, lineCount - 1) fileLines
-   in Diagnostic reports (HashMap.insert path lineArray files)
+   in Diagnostic reports ((path, lineArray) : files)
 {-# INLINE addFile #-}
 
 -- | Inserts a new report into a diagnostic.
