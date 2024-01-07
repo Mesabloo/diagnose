@@ -72,7 +72,6 @@ library
     , hashable >=1.3 && <2
     , prettyprinter >=1.7.0 && <2
     , prettyprinter-ansi-terminal >=1.1.2 && <2
-    , unordered-containers >=0.2.11 && <0.3
     , wcwidth >=0.0.1 && <1
   default-language: Haskell2010
   if flag(json)
@@ -118,7 +117,6 @@ test-suite diagnose-megaparsec-tests
     , prettyprinter >=1.7.0 && <2
     , prettyprinter-ansi-terminal >=1.1.2 && <2
     , text >=1.2 && <3
-    , unordered-containers >=0.2.11 && <0.3
     , wcwidth >=0.0.1 && <1
   default-language: Haskell2010
   if flag(json)
@@ -159,7 +157,6 @@ test-suite diagnose-parsec-tests
     , prettyprinter >=1.7.0 && <2
     , prettyprinter-ansi-terminal >=1.1.2 && <2
     , text >=1.2 && <3
-    , unordered-containers >=0.2.11 && <0.3
     , wcwidth >=0.0.1 && <1
   default-language: Haskell2010
   if flag(json)
@@ -198,7 +195,6 @@ test-suite diagnose-rendering-tests
     , hashable >=1.3 && <2
     , prettyprinter >=1.7.0 && <2
     , prettyprinter-ansi-terminal >=1.1.2 && <2
-    , unordered-containers >=0.2.11 && <0.3
     , wcwidth >=0.0.1 && <1
   default-language: Haskell2010
   if flag(json)

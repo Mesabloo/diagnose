@@ -38,10 +38,10 @@ import Data.Bifunctor (bimap, first, second)
 import Data.Char.WCWidth (wcwidth)
 import Data.Default (def)
 import Data.Foldable (fold)
-import Data.Function (on)
+import Data.Function (on, (&))
 import Data.Functor ((<&>), void)
-import Data.HashMap.Lazy (HashMap)
-import qualified Data.HashMap.Lazy as HashMap
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import qualified Data.List.NonEmpty as NE
 import qualified Data.List as List
 import qualified Data.List.Safe as List
 import Data.Maybe
@@ -51,8 +51,10 @@ import Error.Diagnose.Style (Annotation (..))
 import Prettyprinter (Doc, Pretty (..), align, annotate, colon, hardline, lbracket, rbracket, space, width, (<+>), reAnnotate, SimpleDocStream (..), layoutCompact)
 import Prettyprinter.Internal (Doc (..), textSpaces)
 import Data.Bool (bool)
+import Data.Ord (comparing)
+import Control.Arrow (Arrow((&&&)))
 
-type FileMap = HashMap FilePath (Array Int String)
+type FileMap = [(FilePath, Array Int String)]
 
 type WidthTable = UArray Int Int
 
@@ -316,16 +318,23 @@ ellipsisPrefix ::
   Doc (Annotation ann)
 ellipsisPrefix leftLen withUnicode = pad leftLen ' ' mempty <> annotate RuleColor (unicode "..." (space <> "⋮") withUnicode)
 
-groupMarkersPerFile ::
+groupMarkersPerFile :: forall msg.
   [(Position, Marker msg)] ->
   [(Bool, [(Position, Marker msg)])]
 groupMarkersPerFile [] = []
-groupMarkersPerFile markers =
-  let markersPerFile = List.foldl' (HashMap.unionWith (<>)) mempty $ markers <&> \tup@(p, _) -> HashMap.singleton (file p) [tup]
+groupMarkersPerFile (marker : rest) =
+  let 
+      markersNE = marker :| rest
+      markersByFile :: NonEmpty (FilePath, (Position, Marker msg)) = (file . fst &&& id) <$> markersNE
+      markersPerFile :: [(FilePath, NonEmpty (Position, Marker msg))]
+            = markersByFile
+            & NE.sortBy (comparing fst) 
+            & NE.groupBy (equating fst)
+            <&> (fst . NE.head &&& fmap snd)
    in -- put all markers on the same file together
       -- NOTE: it's a shame that `HashMap.unionsWith f = foldl' (HashMap.unionWith f) mempty` does not exist
 
-      onlyFirstToTrue $ putThisMarkersAtTop $ HashMap.elems markersPerFile
+      onlyFirstToTrue $ putThisMarkersAtTop $ NE.toList . snd <$> markersPerFile
   where
     onlyFirstToTrue = go True []
 
@@ -338,8 +347,15 @@ groupMarkersPerFile markers =
           | any isThisMarker (snd <$> ms2) -> GT
           | otherwise -> EQ
 
+groupOn :: (Eq k, Ord k) => (v -> k) -> [v] -> [(k, NonEmpty v)]
+groupOn f
+  = fmap (fst . NE.head &&& fmap snd)
+  . NE.groupBy (equating fst)
+  . List.sortOn fst 
+  . fmap (f &&& id)
+
 -- | Prettyprint a sub-report, which is a part of the report spanning across a single file
-prettySubReport ::
+prettySubReport :: forall ann.
   -- | The content of files in the diagnostics
   FileMap ->
   -- | Is the output done with Unicode characters?
@@ -359,7 +375,8 @@ prettySubReport fileContent withUnicode isError tabSize maxLineNumberLength isFi
   let (markersPerLine, multilineMarkers) = splitMarkersPerLine markers
       -- split the list on whether markers are multiline or not
 
-      sortedMarkersPerLine = {- second (List.sortOn (first $ snd . begin)) <$> -} List.sortOn fst (HashMap.toList markersPerLine)
+      sortedMarkersPerLine :: [(Int, NonEmpty (Position, Marker (Doc ann)))] = {- second (List.sortOn (first $ snd . begin)) <$> -}
+        groupOn (fst . begin . fst) markersPerLine
 
       reportFile = maybe (pretty @Position def) (pretty . fst) $ List.safeHead (List.sortOn (void . snd) markers)
       -- the reported file is the file of the first 'This' marker (only one must be present)
@@ -387,13 +404,16 @@ isThisMarker (This _) = True
 isThisMarker _ = False
 
 -- |
-splitMarkersPerLine :: [(Position, Marker msg)] -> (HashMap Int [(Position, Marker msg)], [(Position, Marker msg)])
+splitMarkersPerLine :: [(Position, Marker msg)] -> ([(Position, Marker msg)], [(Position, Marker msg)])
 splitMarkersPerLine [] = (mempty, mempty)
 splitMarkersPerLine (m@(Position {..}, _) : ms) =
   let (bl, _) = begin
       (el, _) = end
-   in (if bl == el then first (HashMap.insertWith (<>) bl [m]) else second (m :))
-        (splitMarkersPerLine ms)
+   in (if bl == el then first else second) (m:) (splitMarkersPerLine ms)
+
+-- Like `comparing`
+equating :: Eq a => (b -> a) -> b -> b -> Bool
+equating f a b = f a == f b
 
 -- |
 prettyAllLines ::
@@ -403,11 +423,11 @@ prettyAllLines ::
   -- | The number of spaces each TAB character will span
   TabSize ->
   Int ->
-  [(Int, [(Position, Marker (Doc ann))])] ->
+  [(Int, NonEmpty (Position, Marker (Doc ann)))] ->
   [(Position, Marker (Doc ann))] ->
   [Int] ->
   Doc (Annotation ann)
-prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNumbers =
+prettyAllLines filesParam withUnicode isError tabSize leftLen inline multiline lineNumbers =
   case lineNumbers of
     [] ->
       showMultiline True multiline
@@ -421,6 +441,8 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
             <> (if l2 /= l1 + 1 then hardline <+> dotPrefix leftLen withUnicode else mempty)
             <> prettyAllLines files withUnicode isError tabSize leftLen inline ms (l2 : ls)
   where
+    files = List.nubBy (equating fst) filesParam
+
     showForLine isLastLine line =
       {-
           A line of code is composed of:
@@ -430,7 +452,7 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
 
           Multline markers may also take additional space (2 characters) on the right of the bar
       -}
-      let allInlineMarkersInLine = snd =<< filter ((==) line . fst) inline
+      let allInlineMarkersInLine = NE.toList . snd =<< filter ((==) line . fst) inline
 
           allMultilineMarkersInLine = flip filter multiline \(Position (bl, _) (el, _) _, _) -> bl == line || el == line
 
@@ -505,7 +527,7 @@ getLine_ ::
   Bool ->
   (WidthTable, Doc (Annotation ann))
 getLine_ files markers line (TabSize tabSize) isError =
-  case safeArrayIndex (line - 1) =<< (HashMap.!?) files . file . fst =<< List.safeHead markers of
+  case safeArrayIndex (line - 1) =<< flip lookup files . file . fst =<< List.safeHead markers of
     Nothing ->
       ( mkWidthTable "",
         annotate NoLineColor "<no line>"

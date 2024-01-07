@@ -7,8 +7,6 @@
 import qualified Data.ByteString.Lazy as BS
 import Error.Diagnose(diagnosticToJson)
 #endif
-import Data.HashMap.Lazy (HashMap)
-import qualified Data.HashMap.Lazy as HashMap
 import Error.Diagnose
   ( Marker (..),
     Note (..),
@@ -29,11 +27,11 @@ import Prettyprinter.Util (reflow)
 import Prettyprinter.Render.Terminal (AnsiStyle, Color (..), color, bold, italicized, underlined)
 import Data.Traversable (mapAccumL)
 import Data.Functor.Compose (Compose(..))
+import Data.Foldable (Foldable(..))
 
 main :: IO ()
 main = do
-  let files :: HashMap FilePath String =
-        HashMap.fromList
+  let files :: [(FilePath, String)] =
           [ ("test.zc", "let id<a>(x : a) : a := x + 1\nrec fix(f) := f(fix(f))\nlet const<a, b>(x : a, y : b) : a := x"),
             ("somefile.zc", "let id<a>(x : a) : a := x\n  + 1"),
             ("err.nst", "\n\n\n\n    = jmp g\n\n    g: forall(s: Ts, e: Tc).{ %r0: *s64 | s -> e }"),
@@ -89,8 +87,8 @@ main = do
           nestingReport
         ]
 
-  let diag = HashMap.foldlWithKey' addFile (foldl addReport mempty reports) files
-      customDiag = HashMap.foldlWithKey' addFile (foldl addReport mempty customAnnReports) files
+  let diag = foldl' (fmap uncurry addFile) (foldl addReport mempty reports) files
+      customDiag = foldl' (fmap uncurry addFile) (foldl addReport mempty customAnnReports) files
 
   hPutStrLn stdout "\n\nWith unicode: ─────────────────────────\n"
   printDiagnostic stdout WithUnicode (TabSize 4) defaultStyle diag
