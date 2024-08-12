@@ -220,6 +220,8 @@ import Error.Diagnose.Style as Export
 --   One simply needs to convert the 'Text.Megaparsec.ParseErrorBundle' which is returned by running a parser into a 'Diagnostic' by using 'Error.Diagnose.Compat.Megaparsec.diagnosticFromBundle'.
 --   Several wrappers are included for easy creation of kinds (error, warning) of diagnostics.
 --
+--  A specific instance of 'HasHint' may be provided to convert the user-specific Parser error (the @e@ in megaparsec's @Parse e s@) into a Diagnose 'Report'.
+--
 --   __Note:__ the returned diagnostic does not include file contents, which needs to be added manually afterwards.
 --
 --   As a quick example:

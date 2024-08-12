@@ -1,5 +1,8 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -32,9 +35,15 @@ import Error.Diagnose.Compat.Hints (HasHints (..))
 import qualified Text.Megaparsec as MP
 
 -- | Transforms a megaparsec 'MP.ParseErrorBundle' into a well-formated 'Diagnostic' ready to be shown.
+--
+-- This may be accompanied by providing a specific instance of 'HasHints' for the
+-- specific user error type used with megaparsec (i.e. the @e@ in @Parser e s@).
+-- If no specific instance is provided, a default error report with no hints is
+-- generated.
 diagnosticFromBundle ::
   forall msg s e.
-  (IsString msg, MP.Stream s, HasHints e msg, MP.ShowErrorComponent e, MP.VisualStream s, MP.TraversableStream s) =>
+  (IsString msg, MP.Stream s, HasHints e msg, MP.ShowErrorComponent e, MP.VisualStream s, MP.TraversableStream s
+  , AddBundleError e msg ) =>
   -- | How to decide whether this is an error or a warning diagnostic
   (MP.ParseError s e -> Bool) ->
   -- | An optional error code
@@ -47,20 +56,27 @@ diagnosticFromBundle ::
   MP.ParseErrorBundle s e ->
   Diagnostic msg
 diagnosticFromBundle isError code msg (fromMaybe [] -> trivialHints) MP.ParseErrorBundle {..} =
-  foldl addReport mempty (toLabeledPosition <$> bundleErrors)
+  foldl (addBundleError toLabeledPosition) mempty bundleErrors
   where
-    toLabeledPosition :: MP.ParseError s e -> Report msg
+    toLabeledPosition :: MP.ParseError s e -> [Report msg]
     toLabeledPosition error =
       let (_, pos) = MP.reachOffset (MP.errorOffset error) bundlePosState
           source = fromSourcePos (MP.pstateSourcePos pos)
           msgs = fromString @msg <$> lines (MP.parseErrorTextPretty error)
-       in flip
+          errRep = flip
             (if isError error then Err code msg else Warn code msg)
             (errorHints error)
             if
                 | [m] <- msgs -> [(source, This m)]
                 | [m1, m2] <- msgs -> [(source, This m1), (source, Where m2)]
                 | otherwise -> [(source, This $ fromString "<<Unknown error>>")]
+      in case error of
+        MP.TrivialError {} -> [errRep]
+        MP.FancyError _ errs ->
+          let mkRep = \case
+                MP.ErrorCustom ce -> mkReports [errRep] source ce
+                _ -> [errRep]
+          in concat $ mkRep <$> Set.toList errs
 
     fromSourcePos :: MP.SourcePos -> Position
     fromSourcePos MP.SourcePos {..} =
@@ -75,10 +91,31 @@ diagnosticFromBundle isError code msg (fromMaybe [] -> trivialHints) MP.ParseErr
         MP.ErrorCustom e -> hints e
         _ -> mempty
 
+class AddBundleError e msg where
+  addBundleError :: (MP.ParseError s e -> [Report msg])
+                 -> Diagnostic msg
+                 -> MP.ParseError s e
+                 -> Diagnostic msg
+
+instance {-# OVERLAPPING #-} AddBundleError (Diagnostic msg) msg where
+  addBundleError defaultFun diag err =
+    case err of
+      MP.FancyError _ errs ->
+        let eachErr = \case
+              MP.ErrorCustom d -> (d <>)
+              _ -> flip (foldl addReport) (defaultFun err)
+        in foldr eachErr diag (Set.toList errs)
+      _ -> foldl addReport diag (defaultFun err)
+
+instance {-# OVERLAPPABLE #-} AddBundleError e msg where
+  addBundleError defaultFun diag = foldl addReport diag . defaultFun
+
+
 -- | Creates an error diagnostic from a megaparsec 'MP.ParseErrorBundle'.
 errorDiagnosticFromBundle ::
   forall msg s e.
-  (IsString msg, MP.Stream s, HasHints e msg, MP.ShowErrorComponent e, MP.VisualStream s, MP.TraversableStream s) =>
+  (IsString msg, MP.Stream s, HasHints e msg, MP.ShowErrorComponent e, MP.VisualStream s, MP.TraversableStream s
+  , AddBundleError e msg ) =>
   -- | An optional error code
   Maybe msg ->
   -- | The error message of the diagnostic
@@ -93,7 +130,8 @@ errorDiagnosticFromBundle = diagnosticFromBundle (const True)
 -- | Creates a warning diagnostic from a megaparsec 'MP.ParseErrorBundle'.
 warningDiagnosticFromBundle ::
   forall msg s e.
-  (IsString msg, MP.Stream s, HasHints e msg, MP.ShowErrorComponent e, MP.VisualStream s, MP.TraversableStream s) =>
+  (IsString msg, MP.Stream s, HasHints e msg, MP.ShowErrorComponent e, MP.VisualStream s, MP.TraversableStream s
+  , AddBundleError e msg ) =>
   -- | An optional error code
   Maybe msg ->
   -- | The error message of the diagnostic
