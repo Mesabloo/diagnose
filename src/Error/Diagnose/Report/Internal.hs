@@ -460,11 +460,11 @@ prettyAllLines files withUnicode isError tabSize leftLen inline multiline lineNu
                     <> annotate (markerColor isError marker) (unicode ">" "┤" withUnicode)
                     <> space
 
-          -- we need to remove all blank markers because they are irrelevant to the display
+          -- we need to remove all blank markers because they are irrelevant to
+          -- the messages display.
           allInlineMarkersInLine' = filter (not . isBlank . snd) allInlineMarkersInLine
-          allMultilineMarkersSpanningLine' = filter (not . isBlank . snd) allMultilineMarkersSpanningLine
 
-          (widths, renderedCode) = getLine_ files (allInlineMarkersInLine <> allMultilineMarkersInLine <> allMultilineMarkersSpanningLine') line tabSize isError
+          (widths, renderedCode) = getLine_ files (allInlineMarkersInLine <> allMultilineMarkersInLine <> allMultilineMarkersSpanningLine) line tabSize isError
        in ( otherMultilines,
             hardline
               <> {- (1) -} linePrefix leftLen line withUnicode <+>  additionalPrefix

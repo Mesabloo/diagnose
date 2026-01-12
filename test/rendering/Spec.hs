@@ -81,6 +81,7 @@ main = do
           errorWithMultilineMarkerMessage',
           errorWithSingleBlankMarker,
           errorWithBlankAndNormalMarkerInLine,
+          errorWithMultilineBlankMarker,
           beautifulExample
         ]
       customAnnReports =
@@ -551,4 +552,12 @@ errorWithBlankAndNormalMarkerInLine =
     Nothing
     "Error with a single blank marker"
     [(Position (1, 5) (1, 10) "test.zc", Blank), (Position (1, 15) (1, 22) "test.zc", This "After a blank")]
+    []
+
+errorWithMultilineBlankMarker :: Report String
+errorWithMultilineBlankMarker =
+  Err
+    Nothing
+    "Error with a multiline blank marker"
+    [(Position (1, 3) (3, 10) "test.zc", Blank), (Position (3, 0) (3, 10) "test.zc", This "After a multiline blank")]
     []
